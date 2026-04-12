@@ -135,7 +135,7 @@ export const SpamSystem = ({ showToast }: SpamSystemProps) => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '35px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
                     <div style={{ padding: '25px', background: 'rgba(0,0,0,0.25)', borderRadius: '18px', border: '1px solid var(--border)' }}>
                         <label className="caption" style={{ display: 'block', marginBottom: '15px', fontSize: '10px', color: 'var(--accent)', fontWeight: 'bold' }}>SÉLECTION DES CIBLES</label>
                         <DoubleChannelSelector 
@@ -168,11 +168,11 @@ export const SpamSystem = ({ showToast }: SpamSystemProps) => {
                                 <Sparkles size={14} /> IA MORPH
                             </button>
                         </div>
-                        <textarea value={phrases} onChange={e => setPhrases(e.target.value)} placeholder="Un message par ligne..." style={{ width: '100%', height: '110px', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--border)', borderRadius: '10px', padding: '15px', color: 'white', fontSize: '12px', resize: 'none', outline: 'none', lineHeight: '1.5' }} />
+                        <textarea value={phrases} onChange={e => setPhrases(e.target.value)} placeholder="Un message par ligne..." style={{ width: '100%', height: '110px', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--border)', borderRadius: '10px', padding: '15px', color: 'white', fontSize: '12px', resize: 'none', outline: 'none', lineHeight: '1.5', wordBreak: 'break-all', overflowWrap: 'break-word' }} />
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                         <div style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', borderRadius: '16px', border: '1px solid var(--border)' }}>
                             <span className="caption" style={{ fontSize: '9px', fontWeight: 'bold' }}>DÉLAI (MS)</span>
@@ -280,7 +280,7 @@ export const SpamSystem = ({ showToast }: SpamSystemProps) => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Terminal size={14} color="var(--accent)" />
-                        <span style={{ fontSize: '10px', opacity: 0.6, fontWeight: 'bold' }}>{localLogs[localLogs.length - 1] || 'SCAN EN ATTENTE'}</span>
+                        <span style={{ fontSize: '10px', opacity: 0.6, fontWeight: 'bold', wordBreak: 'break-all', overflowWrap: 'break-word' }}>{localLogs[localLogs.length - 1] || 'SCAN EN ATTENTE'}</span>
                     </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

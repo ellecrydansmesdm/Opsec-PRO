@@ -17,10 +17,33 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     purgeDelay: 1000,
     spotifyCookie: '',
     spotifyLyricsEnabled: false,
+    themeBackground: '',
     themeBlur: 10,
     themeOpacity: 0.8,
     allowActiveAppDetection: false,
-    accounts: []
+    accounts: [],
+    farmerConfig: {
+      enabled: false,
+      vocalHopper: {
+        enabled: false,
+        channelIds: [],
+        interval: 10,
+        jitter: true
+      },
+      messageFarmer: {
+        enabled: false,
+        channelIds: [],
+        phrases: [],
+        delay: 60
+      },
+      stealthMode: true
+    },
+    responderConfig: {
+      enabled: false,
+      afkOnly: true,
+      dmOnly: true,
+      rules: []
+    }
   },
   setSettings: (settings) => set({ settings }),
   updateSetting: (key, value) => {

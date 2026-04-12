@@ -100,6 +100,37 @@ export interface AppSettings {
   themeBlur: number;
   themeOpacity: number;
   allowActiveAppDetection: boolean;
+  // Automation Configs
+  farmerConfig?: FarmerConfig;
+  responderConfig?: ResponderConfig;
   // Multi-account
   accounts: Account[];
+}
+
+export interface FarmerConfig {
+  enabled: boolean;
+  vocalHopper: {
+    enabled: boolean;
+    channelIds: string[];
+    interval: number; // in minutes
+    jitter: boolean;
+  };
+  messageFarmer: {
+    enabled: boolean;
+    channelIds: string[];
+    phrases: string[];
+    delay: number; // in seconds
+  };
+  stealthMode: boolean;
+  startTime?: number;
+}
+
+export interface ResponderConfig {
+  enabled: boolean;
+  afkOnly: boolean; // Only reply if Farmer/Rotator is active
+  dmOnly: boolean;
+  rules: {
+    trigger: string;
+    replies: string[];
+  }[];
 }

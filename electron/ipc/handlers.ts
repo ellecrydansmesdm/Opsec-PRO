@@ -278,6 +278,21 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     return { success: true };
   });
 
+  ipcMain.handle('get-farmer-status', async () => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    return { success: true, data: botService.voiceStalker.getStatus() };
+  });
+
+  ipcMain.handle('close-all-dms', async () => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    return await botService.closeAllDMs();
+  });
+
+  ipcMain.handle('clear-logs', async () => {
+    // This will be handled by the frontend store, but we can emit a signal if needed
+    return { success: true };
+  });
+
   ipcMain.handle('login-via-discord', async () => {
     return new Promise((resolve) => {
       const loginWin = new BrowserWindow({
@@ -406,6 +421,19 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('get-dev-avatar', async () => {
+    try {
+      if (!botService || !botService.client.readyAt) {
+        // Fallback if bot is not connected yet
+        return 'https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif';
+      }
+      const devUser = await botService.client.users.fetch('759026330003308625');
+      return devUser.displayAvatarURL({ dynamic: true, size: 128 });
+    } catch (e) {
+      return 'https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif';
     }
   });
 }

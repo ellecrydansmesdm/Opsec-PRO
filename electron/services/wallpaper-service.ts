@@ -46,7 +46,7 @@ export class WallpaperService {
     // Clean up old wallpapers (optional, but keeps AppData clean)
     this.cleanupOldWallpapers(fileName);
 
-    const protocolUrl = `local-resource:///${destPath.replace(/\\/g, '/')}`;
+    const protocolUrl = `opsec://wallpaper/${fileName}`;
     console.log('[WALLPAPER] Étape 3: Protocol URL généré:', protocolUrl);
     return protocolUrl;
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Globe, Code, Shield, AppWindow, Users, Image as ImageIcon, Trash2, Plus, Upload, Sliders, Music, RefreshCw } from 'lucide-react';
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -11,6 +11,24 @@ export const Settings = () => {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const [devAvatar, setDevAvatar] = useState('https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif');
+
+  useEffect(() => {
+    // Migration: Clear hardcoded absolute paths that are not protocols
+    if (settings.themeBackground && 
+       (settings.themeBackground.includes(':\\') || settings.themeBackground.includes('Users/')) && 
+       !settings.themeBackground.startsWith('opsec://') && 
+       !settings.themeBackground.startsWith('local-resource://') &&
+       !settings.themeBackground.startsWith('http')
+    ) {
+      console.log('[MIGRATION] Resetting invalid absolute path:', settings.themeBackground);
+      updateSetting('themeBackground', '');
+    }
+
+    (window as any).electronAPI.getDevAvatar().then((url: string) => {
+      if (url) setDevAvatar(url);
+    });
+  }, []);
 
   const t = {
     fr: {
@@ -79,53 +97,46 @@ export const Settings = () => {
   };
 
   const handleLocalUpload = async () => {
-    console.log('[WALLPAPER] UX: Déclenchement du sélecteur...');
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    
-    input.onchange = (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      
-      console.log('[WALLPAPER] UX: Fichier sélectionné:', file.name);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        console.log('[WALLPAPER] UX: Aperçu Data URL généré avec succès');
-        setPreviewUrl(dataUrl);
-        setPendingImage(file.path || file.name); // Note: file.path is available in Electron for <input>
+    console.log('[WALLPAPER] UX: Déclenchement du sélecteur natif...');
+    try {
+      const res = await (window as any).electronAPI.selectFile();
+      if (res.success && res.data) {
+        const filePath = res.data;
+        console.log('[WALLPAPER] UX: Fichier sélectionné:', filePath);
         
-        // If file.path is missing (rare in webPreferences), we might need selectFile fallback
-        // but typically Electron provides it.
+        // Logic for Option A: Use local-resource:// for immediate preview
+        // Note: We replace backslashes if on Windows to form a valid file URL
+        const protocolUrl = `local-resource://${filePath.replace(/\\/g, '/')}`;
+        setPreviewUrl(protocolUrl);
+        setPendingImage(filePath);
         showToast('Aperçu chargé. Cliquez sur Appliquer.', 'success');
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
+      }
+    } catch (err) {
+      showToast('Impossible d\'ouvrir l\'explorateur de fichiers', 'danger');
+    }
   };
 
   const applyWallpaper = async () => {
     if (!pendingImage) return;
     
     setIsApplying(true);
-    console.log('[WALLPAPER] UX: Tentative d\'application...', pendingImage);
+    console.log('[WALLPAPER] UX: Sauvegarde dans AppData...', pendingImage);
     
     try {
       const res = await (window as any).electronAPI.wallpaperUpload(pendingImage);
       if (res.success) {
-        console.log('[WALLPAPER] UX: Succès ! URL Finale:', res.data);
+        console.log('[WALLPAPER] UX: Sauvegarde réussie. URL persistante:', res.data);
         updateSetting('themeBackground', res.data);
         setPendingImage(null);
         setPreviewUrl(null);
-        showToast('Fond d\'écran appliqué avec succès !', 'success');
+        showToast('Fond d\'écran sauvegardé et appliqué !', 'success');
       } else {
-        console.error('[WALLPAPER] UX: Échec Application:', res.error);
-        showToast(res.error || 'Erreur lors de l\'application', 'danger');
+        console.error('[WALLPAPER] UX: Échec Sauvegarde:', res.error);
+        showToast(res.error || 'Erreur lors de la sauvegarde', 'danger');
       }
     } catch (err: any) {
-      console.error('[WALLPAPER] UX: Erreur Critique:', err);
-      showToast('Erreur système lors de l\'application', 'danger');
+      console.error('[WALLPAPER] UX: Erreur fatale:', err);
+      showToast('Erreur système lors de la copie du fichier', 'danger');
     } finally {
       setIsApplying(false);
     }
@@ -415,7 +426,7 @@ export const Settings = () => {
       <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', opacity: 0.4, paddingBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '1px solid var(--accent)', padding: '1px', background: 'var(--bg-main)' }}>
-            <img src={user?.avatarURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="dev" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            <img src={devAvatar} alt="dev" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
           </div>
           <span style={{ fontSize: '10px', fontWeight: '900', color: 'white', letterSpacing: '0.05em' }}>{t.devCredit}</span>
         </div>

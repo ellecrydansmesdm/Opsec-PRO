@@ -10,10 +10,13 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoadingScreen } from '@/components/auth/LoadingScreen';
 import { FullScreenBackground } from '@/components/ui/FullScreenBackground';
+import { LogsDock } from '@/components/layout/LogsDock';
 
 // Pages
 import { Overview } from '@/pages/Overview';
 import { Modules } from '@/pages/Modules';
+import { Farmer } from '@/pages/Farmer';
+import { AutoResponder } from '@/pages/AutoResponder';
 import { Logs } from '@/pages/Logs';
 import { Settings } from '@/pages/Settings';
 import { Animations } from '@/pages/Animations';
@@ -112,9 +115,13 @@ function App() {
     const handleOpenAdd = () => setShowAddModal(true);
     window.addEventListener('open-add-account' as any, handleOpenAdd);
 
+    const handleSwitchToLogs = () => setActiveTab('Logs');
+    window.addEventListener('switch-to-logs' as any, handleSwitchToLogs);
+
     return () => {
       window.removeEventListener('keydown', handleEsc);
       window.removeEventListener('open-add-account' as any, handleOpenAdd);
+      window.removeEventListener('switch-to-logs' as any, handleSwitchToLogs);
     };
   }, []);
 
@@ -154,12 +161,17 @@ function App() {
               <Modules onConfirm={(data) => setConfirmData(data)} />
             )}
             
+            {activeTab === 'Farmer' && <Farmer />}
+            
+            {activeTab === 'Responder' && <AutoResponder />}
+            
             {activeTab === 'Logs' && <Logs />}
             
             {activeTab === 'Animations' && <Animations />}
             
             {activeTab === 'Settings' && <Settings />}
           </main>
+          <LogsDock />
         </div>
       )}
 

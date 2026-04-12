@@ -1,30 +1,48 @@
 import { Client } from 'discord.js-selfbot-v13';
+import { FarmerConfig } from '../../shared/types';
 
-export type FarmerStatus = 'connected' | 'idle';
+export type FarmerStatus = 'connected' | 'idle' | 'hopping';
 
 export class VoiceStalker {
     private client: Client;
     private status: FarmerStatus = 'idle';
     private currentGuildId: string | null = null;
     private currentChannelId: string | null = null;
+    private startTime: number | null = null;
+    private config: FarmerConfig | null = null;
+    private hopperTimer: NodeJS.Timeout | null = null;
+    private logCallback: (msg: string, type: 'info' | 'success' | 'error') => void;
 
-    constructor(client: Client) {
+    constructor(client: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void) {
         this.client = client;
+        this.logCallback = logCallback;
         this.setupListeners();
+    }
+
+    public updateConfig(config: FarmerConfig) {
+        this.config = config;
+        if (config.vocalHopper.enabled && config.enabled) {
+            this.startHopper();
+        } else if (config.enabled && config.vocalHopper.channelIds.length > 0) {
+            // Standard single channel join if hopper is off but farmer is on
+            if (this.status === 'idle') {
+                this.joinAFK(config.vocalHopper.channelIds[0]);
+            }
+        } else if (!config.enabled) {
+            this.leaveAFK();
+            this.stopHopper();
+        }
     }
 
     private setupListeners() {
         this.client.on('voiceStateUpdate', (oldState, newState) => {
-            // Uniquement si on est censé être connectés en AFK
-            if (this.status !== 'connected' || !this.currentChannelId) return;
+            if (this.status === 'idle' || !this.currentChannelId) return;
 
-            // Si c'est nous qui avons changé d'état
             if (newState.member?.id === this.client.user?.id) {
-                // Si on a été déconnectés (channelId est null)
                 if (!newState.channelId) {
-                    console.log(`[AFK] Déconnexion détectée. Reconnexion automatique dans 5s...`);
+                    this.logCallback(`[AFK] Déconnexion détectée. Reconnexion dans 5s...`, 'error');
                     setTimeout(() => {
-                        if (this.status === 'connected' && this.currentChannelId) {
+                        if (this.status !== 'idle' && this.currentChannelId) {
                             this.joinAFK(this.currentChannelId);
                         }
                     }, 5000);
@@ -33,22 +51,53 @@ export class VoiceStalker {
         });
     }
 
+    private startHopper() {
+        if (this.hopperTimer) clearTimeout(this.hopperTimer);
+        this.status = 'hopping';
+        this.runHopper();
+    }
+
+    private stopHopper() {
+        if (this.hopperTimer) {
+            clearTimeout(this.hopperTimer);
+            this.hopperTimer = null;
+        }
+        if (this.status === 'hopping') this.status = 'idle';
+    }
+
+    private async runHopper() {
+        if (this.status !== 'hopping' || !this.config) return;
+
+        const ids = this.config.vocalHopper.channelIds;
+        if (ids.length > 0) {
+            const nextId = ids[Math.floor(Math.random() * ids.length)];
+            await this.joinAFK(nextId);
+            this.logCallback(`[HOPPER] Rotation vers le salon vocal : ${nextId}`, 'info');
+        }
+
+        const intervalMs = this.config.vocalHopper.interval * 60 * 1000;
+        const jitter = this.config.vocalHopper.jitter ? (Math.random() * 60000 * 2) - 60000 : 0; // +/- 1 min
+        
+        this.hopperTimer = setTimeout(() => this.runHopper(), Math.max(10000, intervalMs + jitter));
+    }
+
     public setClient(newClient: Client) {
         this.client = newClient;
     }
 
-    public getStatus(): FarmerStatus {
-        return this.status;
+    public getStatus() {
+        return {
+            status: this.status,
+            channelId: this.currentChannelId,
+            startTime: this.startTime,
+            uptime: this.startTime ? Date.now() - this.startTime : 0
+        };
     }
 
-    /**
-     * Rejoint un salon vocal pour le farming AFK
-     */
     public async joinAFK(channelId: string) {
         if (!this.client?.user) return { success: false, message: 'Client non connecté' };
 
         try {
-            // Recherche du salon dans tous les serveurs
             let targetGuildId = null;
             let channelName = channelId;
 
@@ -61,18 +110,11 @@ export class VoiceStalker {
                 }
             }
 
-            if (!targetGuildId) {
-                return { success: false, message: 'Salon introuvable' };
-            }
-
-            console.log(`[AFK] Tentative de connexion à ${channelName} (${channelId})...`);
+            if (!targetGuildId) return { success: false, message: 'Salon introuvable' };
 
             const shard = (this.client as any).ws?.shards?.first();
-            if (!shard || !shard.connection) {
-                return { success: false, message: 'WebSocket indisponible' };
-            }
+            if (!shard || !shard.connection) return { success: false, message: 'WS indisponible' };
 
-            // Injection Gateway Op 4 (Mute/Deaf auto)
             shard.connection.send(JSON.stringify({
                 op: 4,
                 d: {
@@ -85,53 +127,42 @@ export class VoiceStalker {
 
             this.currentGuildId = targetGuildId;
             this.currentChannelId = channelId;
-            this.status = 'connected';
+            if (this.status === 'idle') this.status = 'connected';
+            if (!this.startTime) this.startTime = Date.now();
 
-            console.log(`[AFK] Connecté avec succès dans ${channelName}`);
             return { success: true, channelName };
-
         } catch (e: any) {
-            console.error(`[AFK ERROR] ${e.message}`);
             return { success: false, message: e.message };
         }
     }
 
-    /**
-     * Quitte le salon vocal actuel
-     */
     public async leaveAFK() {
         if (!this.client?.user || !this.currentGuildId) {
-            return { success: false, message: 'Non connecté à un vocal' };
+            this.status = 'idle';
+            this.startTime = null;
+            return { success: false, message: 'Non connecté' };
         }
 
         try {
-            console.log(`[AFK] Déconnexion du salon...`);
-            
             const shard = (this.client as any).ws?.shards?.first();
             if (shard && shard.connection) {
                 shard.connection.send(JSON.stringify({
                     op: 4,
-                    d: {
-                        guild_id: this.currentGuildId,
-                        channel_id: null,
-                        self_mute: true,
-                        self_deaf: true
-                    }
+                    d: { guild_id: this.currentGuildId, channel_id: null, self_mute: true, self_deaf: true }
                 }));
             }
 
             this.currentGuildId = null;
             this.currentChannelId = null;
             this.status = 'idle';
-
+            this.startTime = null;
             return { success: true };
         } catch (e: any) {
             return { success: false, message: e.message };
         }
     }
 
-    // Compatibilité API existante (alias)
-    public async scan() { return; }
+    public scan() { return; }
     public start() { return; }
     public async setTarget(id: string) { return this.joinAFK(id); }
     public async clearTarget() { return this.leaveAFK(); }

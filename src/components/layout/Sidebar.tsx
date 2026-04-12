@@ -1,5 +1,5 @@
-import React from 'react';
-import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2, Tractor, Bot } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { AccountSwitcher } from '../ui/AccountSwitcher';
 
@@ -13,6 +13,13 @@ interface SidebarProps {
 
 export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => {
   const { user } = useUserStore();
+  const [devAvatar, setDevAvatar] = useState('https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif');
+
+  useEffect(() => {
+    (window as any).electronAPI.getDevAvatar().then((url: string) => {
+      if (url) setDevAvatar(url);
+    });
+  }, []);
   
   return (
     <aside className="sidebar">
@@ -41,6 +48,24 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => 
             onClick={() => setActiveTab('Logs')}
           >
             <Terminal size={24} strokeWidth={2} />
+          </button>
+        </Tooltip>
+
+        <Tooltip text="Farmer">
+          <button 
+            className={`nav-button ${activeTab === 'Farmer' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('Farmer')}
+          >
+            <Tractor size={24} strokeWidth={2} />
+          </button>
+        </Tooltip>
+
+        <Tooltip text="Auto-Responder">
+          <button 
+            className={`nav-button ${activeTab === 'Responder' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('Responder')}
+          >
+            <Bot size={24} strokeWidth={2} />
           </button>
         </Tooltip>
 
@@ -83,7 +108,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => 
             background: 'var(--bg-main)'
           }}>
             <img 
-              src={user?.avatarURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
+              src={devAvatar} 
               alt="dev" 
               style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
             />

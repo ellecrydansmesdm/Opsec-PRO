@@ -39,6 +39,9 @@ declare global {
       toggleSpotifyLyrics: (data: { enabled: boolean; cookie?: string }) => Promise<IPCResponse<{ success: boolean }>>;
       openExternal: (url: string) => Promise<IPCResponse<{ success: boolean }>>;
       showMessageBox: (options: any) => Promise<any>;
+      closeAllDMs: () => Promise<IPCResponse<{ count: number }>>;
+      getFarmerStatus: () => Promise<IPCResponse<{ voice: any; xp: any; autoResponder: any }>>;
+      clearLogs: () => Promise<IPCResponse<void>>;
     };
   }
 }

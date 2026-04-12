@@ -57,4 +57,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Wallpaper & Theme
   wallpaperUpload: (filePath?: string) => ipcRenderer.invoke('wallpaper:upload', filePath),
   wallpaperReset: () => ipcRenderer.invoke('wallpaper:reset'),
+  
+  // Dev Credits
+  getDevAvatar: () => ipcRenderer.invoke('get-dev-avatar'),
+
+  // V1.2.0 Automation & Farmer
+  getFarmerStatus: () => ipcRenderer.invoke('get-farmer-status'),
+  closeAllDMs: () => ipcRenderer.invoke('close-all-dms'),
+  clearLogs: () => ipcRenderer.invoke('clear-logs'),
 });

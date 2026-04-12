@@ -21,6 +21,16 @@ protocol.registerSchemesAsPrivileged([
       corsEnabled: true,
       allowServiceWorkers: true
     }
+  },
+  {
+    scheme: 'opsec',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      allowServiceWorkers: true
+    }
   }
 ]);
 
@@ -94,16 +104,9 @@ app.whenReady().then(() => {
 app.whenReady().then(() => {
   protocol.handle('local-resource', async (request) => {
     try {
-      // request.url can look like:
-      // local-resource://C:/Users/path... (Chromium might treat C: as host)
-      // local-resource:///C:/Users/path... (Best case, triple slash)
-      
       console.log('[PROTOCOL] URL Reçue:', request.url);
-      
       const parsedUrl = new URL(request.url);
       
-      // If C: was treated as host, pathname is /Users/...
-      // If it's host-less, pathname starts with /C:/...
       let decodedPath = decodeURIComponent(parsedUrl.pathname);
       
       // If host exists (like 'c'), prepend it to the path
@@ -111,30 +114,46 @@ app.whenReady().then(() => {
         decodedPath = parsedUrl.host + ':' + decodedPath;
       }
       
-      // Remove leading slash if it exists (e.g. /C:/ -> C:/)
       if (decodedPath.startsWith('/')) {
         decodedPath = decodedPath.slice(1);
       }
 
       console.log('[PROTOCOL] Path extrait:', decodedPath);
 
-      // Verify file existence
       if (!fs.existsSync(decodedPath)) {
         console.error('[PROTOCOL] Fichier introuvable:', decodedPath);
         return new Response('File not found', { status: 404 });
       }
 
       const fileUri = url.pathToFileURL(decodedPath).toString();
-      console.log('[PROTOCOL] Résolution file://:', fileUri);
-
       return net.fetch(fileUri);
     } catch (err: any) {
       console.error('[PROTOCOL] Erreur critique:', err);
       return new Response(err.message, { status: 500 });
     }
   });
-});
 
+  // NEW: Robust Protocol for Wallpapers (Machine Independent)
+  protocol.handle('opsec', async (request) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      if (parsedUrl.hostname === 'wallpaper') {
+        // request.url is "opsec://wallpaper/filename.png"
+        // parsedUrl.pathname is "/filename.png"
+        const fileName = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ''));
+        const targetPath = path.join(app.getPath('userData'), 'wallpapers', fileName);
+        
+        if (!fs.existsSync(targetPath)) {
+            return new Response('Wallpaper not found', { status: 404 });
+        }
+        return net.fetch(url.pathToFileURL(targetPath).toString());
+      }
+      return new Response('Invalid opsec protocol', { status: 400 });
+    } catch (err: any) {
+      return new Response(err.message, { status: 500 });
+    }
+  });
+});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();

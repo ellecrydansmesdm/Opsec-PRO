@@ -15,6 +15,7 @@ export const defaultSettings: AppSettings = {
     allowActiveAppDetection: false,
     spotifyLyricsEnabled: false,
     spotifyCookie: '',
+    themeBackground: '',
     accounts: []
 };
 

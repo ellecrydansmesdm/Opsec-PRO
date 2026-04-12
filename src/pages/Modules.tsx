@@ -33,8 +33,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
 
   const [dmAllText, setDmAllText] = useState("Hello {user} !");
   const [sendingDmAll, setSendingDmAll] = useState(false);
-  const [afkTarget, setAfkTarget] = useState("");
-  const [isAfk, setIsAfk] = useState(false);
+  const [isClosingDMs, setIsClosingDMs] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
 
   // Security: Reset targets when switching accounts
@@ -128,10 +127,10 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
 
           if (selectionType === 'friends') {
             const res = await window.electronAPI.deleteAllFriends(ids);
-            if (res.success) showToast(`Succès : ${(res as any).count} amis supprimés`);
+            if (res.success && res.data) showToast(`Succès : ${res.data.count} amis supprimés`);
           } else {
             const res = await window.electronAPI.leaveAllGroups(ids, silent);
-            if (res.success) showToast(`Succès : ${(res as any).count} groupes quittés`);
+            if (res.success && res.data) showToast(`Succès : ${res.data.count} groupes quittés`);
           }
         } catch (err: any) {
           showToast(`Erreur : ${err.message || "Opération échouée"}`, "danger");
@@ -266,6 +265,40 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               {isProcessingFriends ? <RefreshCw className="animate-spin" size={14} /> : <Users size={14} />}
               {isProcessingFriends ? 'En cours...' : 'Vider les Amis'}
             </button>
+
+            <button 
+              onClick={() => {
+                onConfirm({
+                  isOpen: true,
+                  title: 'Fermer tous les DMs',
+                  message: 'Voulez-vous vraiment fermer TOUTES vos conversations privées ? Cette action est irréversible.',
+                  onConfirm: async () => {
+                    setIsClosingDMs(true);
+                    const res = await window.electronAPI.closeAllDMs();
+                    setIsClosingDMs(false);
+                    if (res.success && res.data) {
+                      showToast(`${res.data.count} conversations fermées.`);
+                    } else {
+                      showToast(res.error || 'Erreur lors de la fermeture des DMs', 'danger');
+                    }
+                  },
+                  type: 'danger'
+                });
+              }} 
+              disabled={isClosingDMs}
+              className="btn-primary" 
+              style={{ 
+                gridColumn: 'span 2',
+                background: isClosingDMs ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                color: isClosingDMs ? 'var(--accent)' : 'var(--danger)', 
+                border: `1px solid rgba(239, 68, 68, 0.2)`, 
+                fontSize: '11px', 
+                gap: '8px'
+              }}
+            >
+              {isClosingDMs ? <RefreshCw className="animate-spin" size={14} /> : <Trash2 size={14} />}
+              {isClosingDMs ? 'Nettoyage en cours...' : 'Fermer tous les DMs'}
+            </button>
           </div>
           
           <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid var(--border)' }}>
@@ -309,56 +342,6 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         <SpamSystem showToast={showToast} />
       </div>
 
-      {/* Voice Stalker Utility (Separated) */}
-      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.2s', background: 'rgba(10, 10, 15, 0.9)' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--success)', boxShadow: '0 0 15px var(--success-glow)' }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', color: 'var(--success)', boxShadow: '0 0 20px var(--success-glow)' }}><Volume2 size={22} /></div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>AFK VC Farmer</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Automatic XP & Presence Farming</p>
-          </div>
-        </div>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-           <div style={{ padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                 <label className="caption">Paramètres de Farming</label>
-                 <span style={{ fontSize: '9px', opacity: 0.5 }}>Discord: `+afkvc [ID]`</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                 <DoubleChannelSelector 
-                   onSelect={(id) => setAfkTarget(id)} 
-                   currentId={afkTarget} 
-                 />
-                 
-                 <button onClick={async () => {
-                    if (isAfk) { 
-                        await window.electronAPI.setVoiceStalker({ userId: null }); 
-                        setIsAfk(false); 
-                        showToast('Farming arrêté', 'danger');
-                    }
-                    else { 
-                        if (!afkTarget) {
-                            showToast('Veuillez entrer un ID de salon !', 'danger');
-                            return;
-                        }
-                        const res = await window.electronAPI.setVoiceStalker({ channelId: afkTarget }); 
-                        if (res.success) {
-                            setIsAfk(true); 
-                            showToast('Farming démarré !', 'success');
-                        } else {
-                            showToast(res.error || 'Erreur de connexion', 'danger');
-                        }
-                    }
-                 }} className="btn-primary" style={{ height: '45px', background: isAfk ? 'var(--danger)' : 'var(--success)', boxShadow: isAfk ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--success-glow)', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                    {isAfk ? <RefreshCw className="animate-spin" size={14} /> : <Zap size={14} />}
-                    {isAfk ? 'En cours...' : 'Start Farming'}
-                 </button>
-              </div>
-           </div>
-        </div>
-      </div>
 
       {/* Spotify Lyrics Card */}
       <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.3s' }}>

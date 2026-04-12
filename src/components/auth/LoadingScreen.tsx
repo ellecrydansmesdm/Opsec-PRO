@@ -59,14 +59,22 @@ export const LoadingScreen = () => {
       }}></div>
 
       {/* Main Logo Container */}
-      <div style={{ position: 'relative', marginBottom: '60px', zIndex: 10 }}>
+      <div style={{ 
+        position: 'relative', 
+        marginBottom: '40px', 
+        zIndex: 10,
+        height: '230px', // Tall enough for the rotated diamond
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
         {/* Pulsing Outer Rings */}
         <div style={{
-          position: 'absolute', inset: '-30px', border: '1px solid rgba(0, 210, 255, 0.1)',
+          position: 'absolute', width: '220px', height: '220px', border: '1px solid rgba(0, 210, 255, 0.1)',
           borderRadius: '50%', animation: 'ping-slow 3s infinite'
         }}></div>
         <div style={{
-          position: 'absolute', inset: '-60px', border: '1px solid rgba(0, 210, 255, 0.05)',
+          position: 'absolute', width: '280px', height: '280px', border: '1px solid rgba(0, 210, 255, 0.05)',
           borderRadius: '50%', animation: 'ping-slow 3s infinite reverse'
         }}></div>
 
@@ -75,10 +83,10 @@ export const LoadingScreen = () => {
           background: 'rgba(0, 0, 0, 0.6)',
           backdropFilter: 'blur(10px)',
           border: '2px solid var(--accent)',
-          borderRadius: '40px', // Squircle look
+          borderRadius: '40px', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 0 50px var(--accent-glow), inset 0 0 20px var(--accent-glow)',
-          transform: 'rotate(45deg)', // Diamond shape
+          transform: 'rotate(45deg)', 
           animation: 'float 3s ease-in-out infinite'
         }}>
           <img 
@@ -87,15 +95,15 @@ export const LoadingScreen = () => {
             style={{ 
               width: '80px', height: '80px', 
               objectFit: 'contain', 
-              transform: 'rotate(-45deg)', // Counter-rotate icon
+              transform: 'rotate(-45deg)', 
               filter: 'drop-shadow(0 0 15px var(--accent))'
             }} 
           />
         </div>
 
-        {/* Scanning Line */}
+        {/* Scanning Line - Centered and scanning correctly */}
         <div style={{
-          position: 'absolute', top: 0, left: '-20px', right: '-20px', height: '2px',
+          position: 'absolute', width: '240px', height: '2px',
           background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
           boxShadow: '0 0 15px var(--accent)',
           animation: 'scan 2s linear infinite',
@@ -114,7 +122,7 @@ export const LoadingScreen = () => {
           WebkitTextFillColor: 'transparent',
           filter: 'drop-shadow(0 0 20px var(--accent-glow))'
         }}>
-          OPSEC <span style={{ opacity: 0.6 }}>PRO v1.1.0</span>
+          OPSEC <span style={{ opacity: 0.6 }}>PRO v1.2.0</span>
         </h1>
         <p style={{
           fontSize: '10px', color: 'var(--accent)', 

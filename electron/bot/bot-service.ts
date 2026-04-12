@@ -18,6 +18,8 @@ export class BotService extends EventEmitter {
     public voiceStalker: VoiceStalker;
     private spotifyService: import('./spotify-service').SpotifyService;
     public profileRotator: ProfileRotator;
+    private autoResponder: import('./auto-responder').AutoResponder;
+    private messageFarmer: import('./message-farmer').MessageFarmer;
     private currentPriorityStatus: string | null = null;
     private lastStatusUpdateAt: number = 0;
     private proxyList: string[] = [];
@@ -42,7 +44,9 @@ export class BotService extends EventEmitter {
             }
         });
 
-        this.voiceStalker = new VoiceStalker(this.client);
+        this.voiceStalker = new VoiceStalker(this.client, (msg, type) => this.log(msg, type));
+        this.autoResponder = new (require('./auto-responder').AutoResponder)(this.client, (msg: any, type: any) => this.log(msg, type));
+        this.messageFarmer = new (require('./message-farmer').MessageFarmer)(this.client, (msg: any, type: any) => this.log(msg, type));
         this.spotifyService = new (require('./spotify-service').SpotifyService)(this.client, this);
         this.profileRotator = new ProfileRotator(
             this.client, 
@@ -234,6 +238,8 @@ export class BotService extends EventEmitter {
             this.cleanupAsync(); 
             this.client = new Client();
             this.voiceStalker.setClient(this.client);
+            this.autoResponder.setClient(this.client);
+            this.messageFarmer.setClient(this.client);
             this.spotifyService = new (require('./spotify-service').SpotifyService)(this.client, this);
             this.profileRotator = new ProfileRotator(
                 this.client, 
@@ -383,6 +389,15 @@ export class BotService extends EventEmitter {
             if (currentAccount && currentAccount.rotator) {
                 this.profileRotator.updateConfig(currentAccount.rotator);
             }
+        }
+
+        if (settings.farmerConfig) {
+            this.voiceStalker.updateConfig(settings.farmerConfig);
+            this.messageFarmer.updateConfig(settings.farmerConfig);
+        }
+
+        if (settings.responderConfig) {
+            this.autoResponder.updateConfig(settings.responderConfig);
         }
     }
 
@@ -572,6 +587,28 @@ export class BotService extends EventEmitter {
     }
 
     async stopSanitizer() { this.isSanitizing = false; }
+
+    async closeAllDMs() {
+        try {
+            this.isSanitizing = true;
+            const dmChannels = this.client.channels.cache.filter(c => c.type === 'DM' || c.type === 'GROUP_DM');
+            this.log(`Fermeture de ${dmChannels.size} conversations privées...`, 'info');
+            let count = 0;
+            for (const channel of dmChannels.values()) {
+                if (!this.isSanitizing) break;
+                try {
+                    await (channel as any).delete();
+                    count++;
+                    await new Promise(r => setTimeout(r, 800)); // Human delay
+                } catch (e: any) { this.log(`Erreur DM ${channel.id} : ${e.message}`, 'error'); }
+            }
+            this.log(`${count} conversations fermées.`, 'success');
+            return { success: true, count };
+        } catch (err: any) {
+            this.log(`Erreur fermeture DMs : ${err.message}`, 'error');
+            return { success: false, error: err.message };
+        } finally { this.isSanitizing = false; }
+    }
 
     async dmAll(message: string) {
         try {
