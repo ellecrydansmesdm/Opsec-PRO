@@ -1,0 +1,80 @@
+{
+  "name": "opsec-selfbot",
+  "version": "1.1.0",
+  "description": "Opsec Pro — Dynamic Discord Automation & Protection Toolkit",
+  "repository": "https://github.com/Fahd3333/opsec-pro.git",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build:client": "tsc && vite build",
+    "build:electron": "npx esbuild electron/main.ts --bundle --platform=node --packages=external --outfile=dist-electron/main.js && npx esbuild electron/preload.ts --bundle --platform=node --packages=external --outfile=dist-electron/preload.js",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron",
+    "dist": "npm run build && electron-builder",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "productName": "Opsec PRO",
+    "appId": "com.opsec.pro",
+    "icon": "assets/icon.ico",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ]
+  },
+  "keywords": [
+    "discord",
+    "selfbot",
+    "opsec",
+    "automation"
+  ],
+  "author": "Fahd3333",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "cross-env": "^10.1.0",
+    "debug": "^4.4.3",
+    "discord.js-selfbot-v13": "^3.7.1",
+    "dotenv": "^17.4.0",
+    "framer-motion": "^12.38.0",
+    "howler": "^2.2.4",
+    "lucide-react": "^1.7.0",
+    "proxy-agent": "^8.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.14.0",
+    "recharts": "^3.8.1",
+    "user-agents": "^2.1.27",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.12",
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-router-dom": "^5.3.3",
+    "@types/recharts": "^1.8.29",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^41.1.1",
+    "electron-builder": "^25.1.8",
+    "rollup": "^4.60.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "wait-on": "^9.0.4"
+  }
+}
