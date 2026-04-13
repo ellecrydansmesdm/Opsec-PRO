@@ -1,6 +1,6 @@
 {
   "name": "opsec-selfbot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Opsec Pro — Dynamic Discord Automation & Protection Toolkit",
   "repository": "https://github.com/Fahd3333/opsec-pro.git",
   "main": "dist-electron/main.js",
