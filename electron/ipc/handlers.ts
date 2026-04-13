@@ -111,10 +111,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
       botService.destroy(); // Clear old client
       const res = await botService.login(account.token);
       if (res.success) {
-          // Persist selected account in settings
-          const current = getSettings();
-          saveSettings(current);
-          // Refresh engine with latest settings
+          // Sync engine with latest settings
           botService.updateEngineSettings(getSettings());
           mainWindow?.webContents.send('auto-login-success', res.user);
           return { success: true, data: { user: res.user } };
@@ -150,6 +147,49 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     }
   });
 
+  ipcMain.handle('resolve-ids', async (_, ids: string[]) => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    const results: Record<string, { name: string; icon?: string; type: string }> = {};
+    
+    for (const id of ids) {
+      if (!id) continue;
+      try {
+        const channel = botService.client.channels.cache.get(id);
+        if (channel) {
+          if (channel.type === 'DM') {
+            const recipient = (channel as any).recipient;
+            results[id] = { 
+              name: recipient ? (recipient.globalName || recipient.username) : 'DM', 
+              icon: recipient?.displayAvatarURL() || '',
+              type: 'dm'
+            };
+          } else if (channel.type === 'GROUP_DM') {
+             results[id] = { name: (channel as any).name || 'Groupe DM', type: 'group' };
+          } else {
+             results[id] = { 
+                name: (channel as any).name, 
+                icon: (channel as any).guild?.iconURL() || '',
+                type: 'channel' 
+             };
+          }
+          continue;
+        }
+        
+        const guild = botService.client.guilds.cache.get(id);
+        if (guild) {
+          results[id] = { name: guild.name, icon: guild.iconURL() || '', type: 'server' };
+          continue;
+        }
+
+        const user = botService.client.users.cache.get(id);
+        if (user) {
+          results[id] = { name: user.globalName || user.username, icon: user.displayAvatarURL(), type: 'user' };
+        }
+      } catch (e) {}
+    }
+    return { success: true, data: results };
+  });
+
   ipcMain.handle('get-friends-list', async () => {
     if (!botService) return { success: false, error: 'Bot service non initialisé' };
     try {
@@ -165,6 +205,26 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     try {
       const groups = await botService.getGroupsList();
       return { success: true, data: groups };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-servers-list', async () => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    try {
+      const servers = await botService.getServersList();
+      return { success: true, data: servers };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('leave-all-servers', async (_, ids) => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    try {
+      const res = await botService.leaveServers(ids);
+      return { success: true, data: res };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -435,5 +495,31 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     } catch (e) {
       return 'https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif';
     }
+  });
+
+  ipcMain.handle('spotify:get-local-lrc', async (_, { artist, title }) => {
+    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
+    const content = lyricsService.getCustomLyrics(artist, title);
+    return { success: !!content, data: content };
+  });
+
+  ipcMain.handle('spotify:save-lrc', async (_, { artist, title, content }) => {
+    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
+    const success = await lyricsService.saveCustomLyrics(artist, title, content);
+    return { success };
+  });
+
+  ipcMain.handle('spotify:import-lrc', async (_, { artist, title }) => {
+    if (!mainWindow) return { success: false };
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [{ name: 'Lyrics', extensions: ['lrc', 'txt'] }]
+    });
+
+    if (result.canceled || result.filePaths.length === 0) return { success: false };
+
+    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
+    const success = await lyricsService.importLrcFile(artist, title, result.filePaths[0]);
+    return { success };
   });
 }

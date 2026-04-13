@@ -16,6 +16,8 @@ export const defaultSettings: AppSettings = {
     spotifyLyricsEnabled: false,
     spotifyCookie: '',
     themeBackground: '',
+    audioVolume: 0.5,
+    audioEnabled: true,
     accounts: []
 };
 

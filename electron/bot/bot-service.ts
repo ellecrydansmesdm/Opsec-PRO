@@ -20,6 +20,9 @@ export class BotService extends EventEmitter {
     public profileRotator: ProfileRotator;
     private autoResponder: import('./auto-responder').AutoResponder;
     private messageFarmer: import('./message-farmer').MessageFarmer;
+    private appDetector: import('./app-detector').AppDetector;
+    private appDetectionTimer: NodeJS.Timeout | null = null;
+    private currentDetectedApp: string | null = null;
     private currentPriorityStatus: string | null = null;
     private lastStatusUpdateAt: number = 0;
     private proxyList: string[] = [];
@@ -45,7 +48,7 @@ export class BotService extends EventEmitter {
         });
 
         this.voiceStalker = new VoiceStalker(this.client, (msg, type) => this.log(msg, type));
-        this.autoResponder = new (require('./auto-responder').AutoResponder)(this.client, (msg: any, type: any) => this.log(msg, type));
+        this.autoResponder = new (require('./auto-responder').AutoResponder)(this.client, (msg: any, type: any) => this.log(msg, type), this);
         this.messageFarmer = new (require('./message-farmer').MessageFarmer)(this.client, (msg: any, type: any) => this.log(msg, type));
         this.spotifyService = new (require('./spotify-service').SpotifyService)(this.client, this);
         this.profileRotator = new ProfileRotator(
@@ -53,6 +56,7 @@ export class BotService extends EventEmitter {
             app.getPath('userData'),
             (msg: string, type: any) => this.log(msg, type)
         );
+        this.appDetector = new (require('./app-detector').AppDetector)();
 
         this.profileRotator.setPulseCallback((data) => {
             BrowserWindow.getAllWindows().forEach(win => {
@@ -263,10 +267,15 @@ export class BotService extends EventEmitter {
     private cleanupAsync() {
         if (this.profileRotator) this.profileRotator.stop();
         if (this.spotifyService) this.spotifyService.stop();
+        if (this.autoResponder) this.autoResponder.stop();
         if (this.client) {
             const oldClient = this.client;
             oldClient.removeAllListeners(); 
             oldClient.destroy();
+        }
+        if (this.appDetectionTimer) {
+            clearInterval(this.appDetectionTimer);
+            this.appDetectionTimer = null;
         }
     }
 
@@ -382,6 +391,12 @@ export class BotService extends EventEmitter {
             const isSpotifyOn = !!settings.spotifyLyricsEnabled;
             if (isSpotifyOn) this.spotifyService.start();
             else this.spotifyService.stop();
+        }
+
+        if (settings.allowActiveAppDetection) {
+            this.startAppDetection();
+        } else {
+            this.stopAppDetection();
         }
 
         if (this.client?.user && this.profileRotator) {
@@ -509,8 +524,10 @@ export class BotService extends EventEmitter {
             const friends = (this.client.relationships as any).cache.filter((r: any) => r.type === 1 || r === 1);
             return Array.from(friends.values()).map((rel: any) => {
                 const user = rel.user;
-                const pseudo = user ? (user.globalName || user.username || rel.id) : `Utilisateur (${rel.id})`;
-                return { id: rel.id, username: pseudo, avatar: user ? user.displayAvatarURL() : '' };
+                // RELATIONSHIP_ID is rel.id in some contexts, but typically rel.user is populated
+                const targetId = rel.id || user?.id;
+                const pseudo = user ? (user.globalName || user.username || targetId) : `Utilisateur (${targetId})`;
+                return { id: targetId, username: pseudo, avatar: user ? user.displayAvatarURL() : '' };
             });
         } catch (e) { return []; }
     }
@@ -606,6 +623,43 @@ export class BotService extends EventEmitter {
             return { success: true, count };
         } catch (err: any) {
             this.log(`Erreur fermeture DMs : ${err.message}`, 'error');
+            return { success: false, error: err.message };
+        } finally { this.isSanitizing = false; }
+    }
+
+    async getServersList() {
+        if (!this.client.user) return [];
+        try {
+            return this.client.guilds.cache.map(g => ({
+                id: g.id,
+                name: g.name,
+                icon: g.iconURL({ dynamic: true, size: 64 }) || ''
+            }));
+        } catch (e) { return []; }
+    }
+
+    async leaveServers(ids: string[]) {
+        try {
+            this.isSanitizing = true;
+            const targetIds = ids.length > 0 ? ids : Array.from(this.client.guilds.cache.keys());
+            this.log(`Départ de ${targetIds.length} serveurs...`, 'info');
+            let count = 0;
+            for (const id of targetIds) {
+                if (!this.isSanitizing) break;
+                try {
+                    const guild = this.client.guilds.cache.get(id);
+                    if (guild) {
+                        this.log(`Départ de : ${guild.name}...`, 'info');
+                        await guild.leave();
+                        count++;
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                } catch (e: any) { this.log(`Erreur serveur ${id} : ${e.message}`, 'error'); }
+            }
+            this.log(`${count} serveurs quittés.`, 'success');
+            return { success: true, count };
+        } catch (err: any) {
+            this.log(`Erreur serveurs : ${err.message}`, 'error');
             return { success: false, error: err.message };
         } finally { this.isSanitizing = false; }
     }
@@ -724,4 +778,40 @@ export class BotService extends EventEmitter {
         return { success: true };
     }
     async forceRotatorUpdate() { this.profileRotator.forceUpdate(); return { success: true }; }
+
+    private startAppDetection() {
+        if (this.appDetectionTimer) return;
+        this.log('Moteur de détection d\'applications en ligne', 'info');
+        this.appDetectionTimer = setInterval(async () => {
+            if (!this.client.user || !this.settings?.allowActiveAppDetection) return;
+            
+            // Priority: Don't overwrite Farmer status if active
+            if (this.voiceStalker.getStatus().status === 'hopping') return;
+
+            const apps = await this.appDetector.getActiveApps();
+            if (apps.length > 0) {
+                const topApp = apps[0]; // Take the first matched one
+                if (this.currentDetectedApp !== topApp.name) {
+                    this.currentDetectedApp = topApp.name;
+                    this.log(`Application détectée : ${topApp.name}`, 'info');
+                    
+                    this.client.user.setActivity(topApp.name, {
+                        type: topApp.type === 'game' ? 0 : topApp.type === 'media' ? 2 : 3,
+                        applicationId: topApp.applicationId
+                    } as any);
+                }
+            } else if (this.currentDetectedApp) {
+                this.currentDetectedApp = null;
+                // Reset to default or rotator (next cycle will fix it)
+            }
+        }, 45000); // Check every 45s
+    }
+
+    private stopAppDetection() {
+        if (this.appDetectionTimer) {
+            clearInterval(this.appDetectionTimer);
+            this.appDetectionTimer = null;
+            this.currentDetectedApp = null;
+        }
+    }
 }

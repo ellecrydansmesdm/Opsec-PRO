@@ -138,7 +138,7 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
                 <p className="caption" style={{ marginBottom: '10px', fontSize: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <ShieldCheck size={10} color="var(--accent)" /> Version
                 </p>
-                <h2 style={{ fontSize: '20px', marginBottom: '2px' }}>1.1.17</h2>
+                <h2 style={{ fontSize: '20px', marginBottom: '2px' }}>v1.2.1</h2>
              </div>
 
              {/* Section 2: Commands Used */}

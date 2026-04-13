@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Code, Shield, AppWindow, Users, Image as ImageIcon, Trash2, Plus, Upload, Sliders, Music, RefreshCw } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Monitor, Palette, Globe, Save, RefreshCw, Music, Volume2, Upload, MousePointer, Code, AppWindow, Users, Image as ImageIcon, Trash2, Plus } from 'lucide-react';
+import { audioService } from '@/services/AudioService';
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -218,15 +219,107 @@ export const Settings = () => {
                          <div className="nighty-toggle-handle"></div>
                       </div>
                    </div>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <p style={{ fontSize: '14px', fontWeight: '700' }}>{t.language}</p>
-                      <select value={settings.language} onChange={e => updateSetting('language', e.target.value as 'fr' | 'en')} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'white', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}>
-                         <option value="fr">Français (FR)</option>
-                         <option value="en">English (US)</option>
-                      </select>
-                   </div>
-                </div>
-             </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <p style={{ fontSize: '14px', fontWeight: '700' }}>{t.language}</p>
+                       <select value={settings.language} onChange={e => updateSetting('language', e.target.value as 'fr' | 'en')} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'white', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}>
+                          <option value="fr">Français (FR)</option>
+                          <option value="en">English (US)</option>
+                       </select>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="glass-card" style={{ padding: '30px' }}>
+                 <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>
+                    <Music size={20} color="#1DB954" /> {t.spotify}
+                 </h3>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <div style={{ maxWidth: '80%' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{t.lyrics}</p>
+                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>{t.lyricsDesc}</p>
+                       </div>
+                       <div onClick={() => updateSetting('spotifyLyricsEnabled', !settings.spotifyLyricsEnabled)} className={`nighty-toggle ${settings.spotifyLyricsEnabled ? 'active' : ''}`} style={{ '--accent': '#1DB954' } as any}>
+                          <div className="nighty-toggle-handle"></div>
+                       </div>
+                    </div>
+
+                    <div style={{ padding: '20px', background: 'rgba(29, 185, 84, 0.05)', borderRadius: '14px', border: '1px solid rgba(29, 185, 84, 0.2)' }}>
+                       <p style={{ fontSize: '11px', fontWeight: '900', color: '#1DB954', marginBottom: '15px', letterSpacing: '0.05em' }}>IMPORT MANUEL (.LRC)</p>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                             <input id="lrc-artist" type="text" className="input-field" placeholder="Artiste (ex: Sleynueve)" style={{ flex: 1, fontSize: '11px' }} />
+                             <input id="lrc-title" type="text" className="input-field" placeholder="Titre (ex: Sunburn)" style={{ flex: 1, fontSize: '11px' }} />
+                          </div>
+                          <button 
+                            className="btn-primary" 
+                            style={{ width: '100%', background: '#1DB954', borderColor: '#1DB954', fontSize: '11px' }}
+                            onClick={async () => {
+                               const artist = (document.getElementById('lrc-artist') as HTMLInputElement).value;
+                               const title = (document.getElementById('lrc-title') as HTMLInputElement).value;
+                               if (!artist || !title) {
+                                  showToast('Veuillez entrer l\'artiste et le titre', 'danger');
+                                  return;
+                               }
+                               const res = await (window as any).electronAPI.spotifyImportLrc({ artist, title });
+                               if (res.success) showToast('Fichier .lrc importé avec succès !', 'success');
+                               else showToast('Importation annulée ou échouée', 'danger');
+                            }}
+                          >
+                             <Upload size={14} /> IMPORTER FICHIER .LRC
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="glass-card" style={{ padding: '30px' }}>
+                 <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>
+                    <Volume2 size={20} color="var(--accent)" /> AUDIO & UX SENSITIERS
+                 </h3>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <div style={{ maxWidth: '80%' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>Effets Sonores UI</p>
+                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>Activer les sons pour les clics, hovers et notifications.</p>
+                       </div>
+                       <div onClick={() => {
+                           updateSetting('audioEnabled', !settings.audioEnabled);
+                           audioService.play('toggle');
+                       }} className={`nighty-toggle ${settings.audioEnabled ? 'active' : ''}`}>
+                          <div className="nighty-toggle-handle"></div>
+                       </div>
+                    </div>
+
+                    <div>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700' }}>Volume Global</p>
+                          <p style={{ fontSize: '12px', fontWeight: '900', color: 'var(--accent)' }}>{Math.round((settings.audioVolume || 0) * 100)}%</p>
+                       </div>
+                       <input 
+                          type="range" 
+                          min="0" 
+                          max="1" 
+                          step="0.01" 
+                          value={settings.audioVolume || 0} 
+                          onChange={(e) => {
+                             const vol = parseFloat(e.target.value);
+                             updateSetting('audioVolume', vol);
+                             if (vol > 0) audioService.play('click');
+                          }}
+                          style={{ width: '100%', accentColor: 'var(--accent)' }}
+                       />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                       <div style={{ maxWidth: '80%' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>Curseur Cyber Blue</p>
+                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>Utiliser un curseur SVG personnalisé sur les éléments interactifs.</p>
+                       </div>
+                       <MousePointer size={18} color="var(--accent)" style={{ opacity: 0.5 }} />
+                    </div>
+                 </div>
+              </div>
 
              <div className="glass-card animate-slide-right" style={{ padding: '30px' }}>
                 <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>

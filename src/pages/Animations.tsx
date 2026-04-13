@@ -92,13 +92,14 @@ export const Animations = () => {
     };
 
     const toggleSection = (section: keyof RotatorConfig['enabledSections']) => {
-        const newSections = { ...rotator.enabledSections, [section]: !rotator.enabledSections[section] };
+        const newRotationState = !rotator.enabledSections[section];
+        const newSections = { ...rotator.enabledSections, [section]: newRotationState };
         handleUpdate({ enabledSections: newSections });
         
-        if (rotator.enabled) {
+        if (newRotationState && rotator.enabled) {
             setTimeout(() => {
                 (window.electronAPI as any).forceRotatorUpdate();
-            }, 700); // 700ms because debounced save is 600ms
+            }, 1000); 
         }
     };
 
@@ -126,8 +127,12 @@ export const Animations = () => {
     };
 
     const forceUpdate = async () => {
+        if (!rotator.enabled) {
+            setNotif({ message: 'Activez d\'abord le système pour forcer un cycle !', type: 'info' });
+            return;
+        }
         await (window.electronAPI as any).forceRotatorUpdate();
-        setNotif({ message: 'Cycle forcé déclenché !', type: 'success' });
+        setNotif({ message: 'Cycle d\'identité forcé avec succès !', type: 'success' });
     };
 
     // Variable Resolver for Preview
@@ -208,7 +213,7 @@ export const Animations = () => {
                 </div>
                 
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                    <div style={{ textAlign: 'right', marginRight: '10px' }}>
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ fontSize: '10px', fontWeight: '900', color: rotator.enabled ? 'var(--success)' : 'var(--text-dim)', textTransform: 'uppercase' }}>
                             {rotator.enabled ? 'Séquenceur Actif' : 'Système en Pause'}
                         </div>
@@ -427,7 +432,15 @@ export const Animations = () => {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <label className="caption">Sélectionner les serveurs (Badge de Clan)</label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <ShieldCheck size={16} color="var(--accent)" />
+                                <span style={{ fontSize: '11px', fontWeight: '800' }}>Badge HypeSquad</span>
+                            </div>
+                            <span style={{ fontSize: '9px', color: 'var(--success)', fontWeight: '900' }}>AUTO-ROTATION ON</span>
+                        </div>
+
+                        <label className="caption">Serveurs pour le Clan Tag (Primary Guild)</label>
                         <DoubleChannelSelector 
                             allowMultiple 
                             selectServerOnly={true}

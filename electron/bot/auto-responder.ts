@@ -5,30 +5,43 @@ export class AutoResponder {
     private client: Client;
     private config: ResponderConfig | null = null;
     private logCallback: (msg: string, type: 'info' | 'success' | 'error') => void;
+    private boundListener: ((message: Message) => Promise<void>) | null = null;
+    private botService: any; // Using any to avoid circular dep if it happens
 
-    constructor(client: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void) {
+    constructor(client: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void, botService?: any) {
         this.client = client;
         this.logCallback = logCallback;
+        this.botService = botService;
         this.setupListener();
     }
 
     public updateConfig(config: ResponderConfig) {
         this.config = config;
         if (config.enabled) {
-            this.logCallback(`[AUTO-RESPONDER] Moteur activé (${config.rules.length} règles)`, 'success');
+            this.logCallback(`[AUTO-RESPONDER] Moteur synchronisé (${config.rules.length} règles)`, 'info');
         }
     }
 
     private setupListener() {
-        this.client.on('messageCreate', async (message: Message) => {
+        if (this.boundListener) {
+            this.client.off('messageCreate', this.boundListener);
+        }
+
+        this.boundListener = async (message: Message) => {
             if (!this.config?.enabled || !this.client.user) return;
             if (message.author.id === this.client.user.id) return;
 
             // Check if DM only
-            if (this.config.dmOnly && message.channel.type !== 'DM' && message.channel.type !== 'GROUP_DM') return;
+            const isDM = message.channel.type === 'DM' || message.channel.type === 'GROUP_DM';
+            if (this.config.dmOnly && !isDM) return;
 
-            // Check if AFK synchronization (requires external check, e.g. from BotService or Bot state)
-            // For now, simple keyword matching
+            // AFK Mode Only: Check if Farmer or VoiceStalker is active
+            if (this.config.afkOnly && this.botService) {
+                const isFarmerActive = this.botService.settings?.farmerConfig?.enabled;
+                const isVoiceActive = this.botService.voiceStalker?.isHopping; 
+                if (!isFarmerActive && !isVoiceActive) return;
+            }
+
             const content = message.content.toLowerCase();
             
             for (const rule of this.config.rules) {
@@ -36,19 +49,33 @@ export class AutoResponder {
                 if (content.includes(trigger)) {
                     const reply = rule.replies[Math.floor(Math.random() * rule.replies.length)];
                     try {
-                        await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000)); // Human jitter
+                        const jitter = 1000 + Math.random() * 3000;
+                        await new Promise(r => setTimeout(r, jitter)); // Human jitter
                         await message.reply(reply);
                         this.logCallback(`[RESPONDER] Réponse auto à ${message.author.username} : "${reply}"`, 'success');
                     } catch (e: any) {
                         this.logCallback(`[RESPONDER ERROR] Échec réponse : ${e.message}`, 'error');
                     }
-                    break; // Only one rule per message
+                    break; 
                 }
             }
-        });
+        };
+
+        this.client.on('messageCreate', this.boundListener);
     }
 
     public setClient(newClient: Client) {
+        if (this.boundListener) {
+            this.client.off('messageCreate', this.boundListener);
+        }
         this.client = newClient;
+        this.setupListener();
+    }
+
+    public stop() {
+        if (this.boundListener) {
+            this.client.off('messageCreate', this.boundListener);
+            this.boundListener = null;
+        }
     }
 }

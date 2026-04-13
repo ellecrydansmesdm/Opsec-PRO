@@ -103,6 +103,9 @@ export interface AppSettings {
   // Automation Configs
   farmerConfig?: FarmerConfig;
   responderConfig?: ResponderConfig;
+  // Audio Config
+  audioVolume: number; // 0 to 1
+  audioEnabled: boolean;
   // Multi-account
   accounts: Account[];
 }

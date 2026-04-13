@@ -16,6 +16,7 @@ declare global {
       startPurge: (data: { channelId: string; amount: number; purgeAll: boolean; delay: number }) => Promise<IPCResponse<void>>;
       stopPurge: () => Promise<IPCResponse<void>>;
       getChannels: () => Promise<IPCResponse<{ servers: any[], dms: any[] }>>;
+      resolveIds: (ids: string[]) => Promise<IPCResponse<Record<string, { name: string; icon?: string; type: string }>>>;
       getSettings: () => Promise<IPCResponse<AppSettings>>;
       saveSettings: (settings: any) => Promise<IPCResponse<void>>;
       onAutoLogin: (callback: (user: UserProfile) => void) => void;
@@ -24,9 +25,11 @@ declare global {
       deleteAllFriends: (ids?: string[]) => Promise<IPCResponse<{ count: number }>>;
       getFriendsList: () => Promise<IPCResponse<any[]>>;
       getGroupsList: () => Promise<IPCResponse<any[]>>;
+      getServersList: () => Promise<IPCResponse<any[]>>;
       getAccounts: () => Promise<IPCResponse<any[]>>;
       selectAccount: (id: string | number) => Promise<IPCResponse<{ user: UserProfile }>>;
       removeAccount: (id: string | number) => Promise<IPCResponse<void>>;
+      leaveAllServers: (ids?: string[]) => Promise<IPCResponse<{ count: number }>>;
       selectFile: () => Promise<IPCResponse<string>>;
       toggleAnimation: (anim: any) => Promise<IPCResponse<void>>;
       dmAllFriends: (data: { message: string }) => Promise<IPCResponse<{ count: number }>>;
@@ -42,6 +45,7 @@ declare global {
       closeAllDMs: () => Promise<IPCResponse<{ count: number }>>;
       getFarmerStatus: () => Promise<IPCResponse<{ voice: any; xp: any; autoResponder: any }>>;
       clearLogs: () => Promise<IPCResponse<void>>;
+      forceRotatorUpdate: () => Promise<IPCResponse<void>>;
     };
   }
 }

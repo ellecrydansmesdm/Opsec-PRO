@@ -8,12 +8,7 @@ import { Howl } from 'howler';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { DoubleChannelSelector } from '../ui/DoubleChannelSelector';
 
-const sounds = {
-    start: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'], volume: 0.2 }),
-    stop: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2567/2567-preview.mp3'], volume: 0.2 }),
-    click: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'], volume: 0.1 }),
-    morph: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3'], volume: 0.2 })
-};
+import { audioService } from '@/services/AudioService';
 
 interface SpamSystemProps {
     showToast?: (message: string, type: 'success' | 'danger') => void;
@@ -34,8 +29,8 @@ export const SpamSystem = ({ showToast }: SpamSystemProps) => {
     const [showProxyTooltip, setShowProxyTooltip] = useState(false);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
-    const playSound = (key: keyof typeof sounds) => {
-        if (!isMuted) sounds[key].play();
+    const playSound = (key: string) => {
+        if (!isMuted) audioService.play(key === 'start' ? 'success' : key === 'stop' ? 'error' : key);
     };
 
     const addLocalLog = (msg: string) => {

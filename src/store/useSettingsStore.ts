@@ -43,7 +43,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       afkOnly: true,
       dmOnly: true,
       rules: []
-    }
+    },
+    audioVolume: 0.5,
+    audioEnabled: true
   },
   setSettings: (settings) => set({ settings }),
   updateSetting: (key, value) => {

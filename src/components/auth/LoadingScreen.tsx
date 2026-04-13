@@ -117,12 +117,12 @@ export const LoadingScreen = () => {
           fontFamily: "'Orbitron', sans-serif",
           fontSize: '32px', fontWeight: '900',
           letterSpacing: '10px', marginBottom: '8px',
-          background: 'linear-gradient(to bottom, #fff, var(--accent))',
+          background: 'linear-gradient(to bottom, #fff, #fff)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           filter: 'drop-shadow(0 0 20px var(--accent-glow))'
         }}>
-          OPSEC <span style={{ opacity: 0.6 }}>PRO v1.2.0</span>
+          OPSEC <span style={{ color: 'var(--accent)', WebkitTextFillColor: 'var(--accent)', fontWeight: '950', textShadow: '0 0 15px var(--accent-glow)' }}>PRO</span> <span style={{ opacity: 0.4, fontSize: '14px', letterSpacing: '2px', WebkitTextFillColor: '#fff' }}>v1.2.1</span>
         </h1>
         <p style={{
           fontSize: '10px', color: 'var(--accent)', 

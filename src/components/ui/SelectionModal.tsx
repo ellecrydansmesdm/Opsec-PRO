@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Search, Check, Users, MessageSquare } from 'lucide-react';
+import { X, Search, Check, Users, MessageSquare, Globe } from 'lucide-react';
 
 interface SelectionItem {
   id: string;
@@ -13,7 +13,7 @@ interface SelectionModalProps {
   onConfirm: (selectedIds: string[], silent?: boolean) => void;
   items: SelectionItem[];
   title: string;
-  type: 'friends' | 'groups';
+  type: 'friends' | 'groups' | 'servers';
 }
 
 export const SelectionModal: React.FC<SelectionModalProps> = ({ 
@@ -83,7 +83,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
         <div style={{ padding: '25px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(var(--accent-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {type === 'friends' ? <Users size={20} color="var(--accent)" /> : <MessageSquare size={20} color="var(--accent)" />}
+              {type === 'friends' ? <Users size={20} color="var(--accent)" /> : type === 'servers' ? <Globe size={20} color="var(--accent)" /> : <MessageSquare size={20} color="var(--accent)" />}
             </div>
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: '800' }}>{title}</h2>
@@ -175,7 +175,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
                       <img src={item.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {type === 'friends' ? <Users size={16} /> : <MessageSquare size={16} />}
+                        {type === 'friends' ? <Users size={16} /> : type === 'servers' ? <Globe size={16} /> : <MessageSquare size={16} />}
                       </div>
                     )}
                   </div>

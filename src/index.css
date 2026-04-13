@@ -122,6 +122,51 @@ body.has-wallpaper {
   width: var(--sidebar-width);
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+/* -------------------------------------------------------------------------- */
+/* GLOBAL INTERACTIVE UX & CURSOR                                             */
+/* -------------------------------------------------------------------------- */
+
+button, 
+a, 
+select, 
+input[type="checkbox"], 
+input[type="radio"], 
+.nighty-toggle, 
+.nav-item, 
+.clickable,
+[role="button"] {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="%2300d4ff" opacity="0.6" stroke="white" stroke-width="1.5"/></svg>') 10 10, pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input[type="text"], 
+input[type="password"], 
+textarea {
+  cursor: text;
+}
+
+/* Hover Global Blue Glow */
+button:hover, 
+.nav-item:hover, 
+.nighty-toggle:hover,
+.clickable:hover {
+  transform: scale(1.02);
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+}
+
+/* Click Compression Effect */
+button:active, 
+.nav-item:active, 
+.clickable:active {
+  transform: scale(0.98);
+}
+.sidebar-nav {
   display: flex;
   flex-direction: column;
   align-items: center;

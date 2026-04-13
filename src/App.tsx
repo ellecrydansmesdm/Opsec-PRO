@@ -20,6 +20,7 @@ import { AutoResponder } from '@/pages/AutoResponder';
 import { Logs } from '@/pages/Logs';
 import { Settings } from '@/pages/Settings';
 import { Animations } from '@/pages/Animations';
+import { audioService } from '@/services/AudioService';
 
 function App() {
   const { user, isAuthenticated, setUser, setAuthenticated, logout } = useUserStore();
@@ -30,6 +31,12 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmData, setConfirmData] = useState<any>({ isOpen: false });
   const [isInitializing, setIsInitializing] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'danger') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   
   // Apply dynamic theme variables to root
   useEffect(() => {
@@ -47,6 +54,31 @@ function App() {
       body.classList.remove('has-wallpaper');
       root.style.setProperty('--has-wallpaper', '0');
     }
+
+    // 3. Global Security : Block Copy & Context Menu
+    const disableCopy = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      
+      e.preventDefault();
+      showToast('🔒 Copie désactivée pour la sécurité', 'danger');
+      audioService.play('error');
+    };
+
+    const disableContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      
+      e.preventDefault();
+    };
+
+    document.addEventListener('copy', disableCopy);
+    document.addEventListener('contextmenu', disableContextMenu);
+
+    return () => {
+      document.removeEventListener('copy', disableCopy);
+      document.removeEventListener('contextmenu', disableContextMenu);
+    };
   }, [settings.themeOpacity, settings.themeBackground]);
 
   useEffect(() => {

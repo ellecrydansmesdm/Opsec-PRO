@@ -25,10 +25,12 @@ export class SpotifyService {
     private _debugTick: number = 0;
     private botService: any;
     private localTrackInfo: { artist: string; title: string; startTime: number } | null = null;
+    private lyricsService: any;
 
     constructor(client: Client, botService?: any) {
         this.client = client;
         this.botService = botService;
+        this.lyricsService = new (require('../services/lyrics-service').LyricsService)(require('electron').app.getPath('userData'));
         
         // Listen to own presence updates
         this.client.on('presenceUpdate', (oldPresence, newPresence) => {
@@ -274,13 +276,21 @@ export class SpotifyService {
             
             this.log(`Lecture détectée : ${title} par ${artist}`, 'info');
             
-            // Search LRCLIB
-            this.lyrics = await this.fetchLyrics(artist || '', title || '');
-            
-            if (this.lyrics.length === 0) {
-                 this.log(`Aucune parole synchronisée trouvée pour : ${title} - ${artist}.`, 'info');
+            // 1. Check local storage first
+            const localLrc = this.lyricsService.getCustomLyrics(artist || '', title || '');
+            if (localLrc) {
+                this.log(`Paroles locales (.lrc) trouvées pour : ${title}`, 'success');
+                this.lyrics = this.parseLRC(localLrc);
             } else {
-                 this.log(`Paroles trouvées ! (${this.lyrics.length} lignes)`, 'success');
+                // 2. Fallback to LRCLIB
+                this.lyrics = await this.fetchLyrics(artist || '', title || '');
+                if (this.lyrics.length === 0) {
+                     this.log(`Aucune parole trouvées (en ligne ou local) pour : ${title} - ${artist}.`, 'info');
+                     // STRICT MODE: If no lyrics found, we must not show anything
+                     this.botService.updateCustomStatus('', true);
+                } else {
+                     this.log(`Paroles trouvées sur LRCLIB ! (${this.lyrics.length} lignes)`, 'success');
+                }
             }
         }
 

@@ -27,9 +27,10 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   // Selection States
   const [selectionItems, setSelectionItems] = useState<any[]>([]);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
-  const [selectionType, setSelectionType] = useState<'friends' | 'groups'>('friends');
+  const [selectionType, setSelectionType] = useState<'friends' | 'groups' | 'servers'>('friends');
   const [isProcessingFriends, setIsProcessingFriends] = useState(false);
   const [isProcessingGroups, setIsProcessingGroups] = useState(false);
+  const [isProcessingServers, setIsProcessingServers] = useState(false);
 
   const [dmAllText, setDmAllText] = useState("Hello {user} !");
   const [sendingDmAll, setSendingDmAll] = useState(false);
@@ -83,6 +84,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     await window.electronAPI.stopSanitizer();
     setIsProcessingFriends(false);
     setIsProcessingGroups(false);
+    setIsProcessingServers(false);
   };
 
   const handleStopDMAll = async () => {
@@ -108,6 +110,15 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     }
   };
 
+  const openServersSelection = async () => {
+    const res = await window.electronAPI.getServersList();
+    if (res.success && res.data) {
+      setSelectionItems(res.data.map((s: any) => ({ id: s.id, name: s.name, avatar: s.icon })));
+      setSelectionType('servers');
+      setIsSelectionModalOpen(true);
+    }
+  };
+
   const handleSelectionConfirm = (ids: string[], silent?: boolean) => {
     setIsSelectionModalOpen(false);
     
@@ -118,25 +129,30 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
 
     onConfirm({
       isOpen: true,
-      title: selectionType === 'friends' ? 'Suppression d\'amis' : 'Départ des groupes',
-      message: `Voulez-vous vraiment ${selectionType === 'friends' ? `supprimer ${ids.length} amis` : `quitter ${ids.length} groupes`} ${silent ? 'en toute discrétion ' : ''}? Cette action est irréversible.`,
+      title: selectionType === 'friends' ? 'Suppression d\'amis' : selectionType === 'groups' ? 'Départ des groupes' : 'Départ des serveurs',
+      message: `Voulez-vous vraiment ${selectionType === 'friends' ? `supprimer ${ids.length} amis` : selectionType === 'groups' ? `quitter ${ids.length} groupes` : `quitter ${ids.length} serveurs`} ${silent ? 'en toute discrétion ' : ''}? Cette action est irréversible.`,
       onConfirm: async () => {
         try {
           if (selectionType === 'friends') setIsProcessingFriends(true);
-          else setIsProcessingGroups(true);
+          else if (selectionType === 'groups') setIsProcessingGroups(true);
+          else setIsProcessingServers(true);
 
           if (selectionType === 'friends') {
             const res = await window.electronAPI.deleteAllFriends(ids);
             if (res.success && res.data) showToast(`Succès : ${res.data.count} amis supprimés`);
-          } else {
+          } else if (selectionType === 'groups') {
             const res = await window.electronAPI.leaveAllGroups(ids, silent);
             if (res.success && res.data) showToast(`Succès : ${res.data.count} groupes quittés`);
+          } else {
+            const res = await window.electronAPI.leaveAllServers(ids);
+            if (res.success && res.data) showToast(`Succès : ${res.data.count} serveurs quittés`);
           }
         } catch (err: any) {
           showToast(`Erreur : ${err.message || "Opération échouée"}`, "danger");
         } finally {
           setIsProcessingFriends(false);
           setIsProcessingGroups(false);
+          setIsProcessingServers(false);
         }
       },
       type: 'danger'
@@ -234,15 +250,15 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
             <button 
               onClick={openGroupsSelection} 
-              disabled={isProcessingGroups || isProcessingFriends}
+              disabled={isProcessingGroups || isProcessingFriends || isProcessingServers}
               className="btn-primary" 
               style={{ 
-                background: (isProcessingGroups || isProcessingFriends) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: (isProcessingGroups || isProcessingFriends) ? 'var(--accent)' : 'var(--danger)', 
+                background: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                color: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
                 border: `1px solid rgba(239, 68, 68, 0.2)`, 
                 fontSize: '11px', 
                 gap: '8px',
-                opacity: isProcessingFriends ? 0.4 : 1
+                opacity: (isProcessingFriends || isProcessingServers) ? 0.4 : 1
               }}
             >
               {isProcessingGroups ? <RefreshCw className="animate-spin" size={14} /> : <MessageSquare size={14} />}
@@ -251,19 +267,36 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
             
             <button 
               onClick={openFriendsSelection} 
-              disabled={isProcessingFriends || isProcessingGroups}
+              disabled={isProcessingFriends || isProcessingGroups || isProcessingServers}
               className="btn-primary" 
               style={{ 
-                background: (isProcessingFriends || isProcessingGroups) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: (isProcessingFriends || isProcessingGroups) ? 'var(--accent)' : 'var(--danger)', 
+                background: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                color: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
                 border: `1px solid rgba(239, 68, 68, 0.2)`, 
                 fontSize: '11px', 
                 gap: '8px',
-                opacity: isProcessingGroups ? 0.4 : 1
+                opacity: (isProcessingGroups || isProcessingServers) ? 0.4 : 1
               }}
             >
               {isProcessingFriends ? <RefreshCw className="animate-spin" size={14} /> : <Users size={14} />}
               {isProcessingFriends ? 'En cours...' : 'Vider les Amis'}
+            </button>
+
+            <button 
+              onClick={openServersSelection} 
+              disabled={isProcessingServers || isProcessingFriends || isProcessingGroups}
+              className="btn-primary" 
+              style={{ 
+                background: (isProcessingServers || isProcessingFriends || isProcessingGroups) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                color: (isProcessingServers || isProcessingFriends || isProcessingGroups) ? 'var(--accent)' : 'var(--danger)', 
+                border: `1px solid rgba(239, 68, 68, 0.2)`, 
+                fontSize: '11px', 
+                gap: '8px',
+                opacity: (isProcessingFriends || isProcessingGroups) ? 0.4 : 1
+              }}
+            >
+              {isProcessingServers ? <RefreshCw className="animate-spin" size={14} /> : <Activity size={14} />}
+              {isProcessingServers ? 'En cours...' : 'Quitter Serveurs'}
             </button>
 
             <button 
@@ -288,7 +321,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               disabled={isClosingDMs}
               className="btn-primary" 
               style={{ 
-                gridColumn: 'span 2',
+                gridColumn: 'span 3',
                 background: isClosingDMs ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
                 color: isClosingDMs ? 'var(--accent)' : 'var(--danger)', 
                 border: `1px solid rgba(239, 68, 68, 0.2)`, 
@@ -386,7 +419,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         onClose={() => setIsSelectionModalOpen(false)}
         onConfirm={handleSelectionConfirm}
         items={selectionItems}
-        title={selectionType === 'friends' ? 'Sélectionner les amis' : 'Sélectionner les groupes'}
+        title={selectionType === 'friends' ? 'Sélectionner les amis' : selectionType === 'servers' ? 'Sélectionner les serveurs' : 'Sélectionner les groupes'}
         type={selectionType}
       />
 

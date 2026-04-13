@@ -19,11 +19,13 @@ export class ProfileRotator {
         nextTick: number, 
         totalRotations: number, 
         lastRotationTime?: number, 
-        pausedUsernameUntil?: number 
+        pausedUsernameUntil?: number,
+        currentHouse?: string
     }) => void;
     private statePath: string;
     private state: RotatorState = { counter: 0, totalRotations: 0 };
     private nextTickTime: number = 0;
+    private currentHouseIndex: number = 0;
 
     constructor(client: Client, userDataPath: string, logCallback: (msg: string, type: 'info' | 'success' | 'error' | 'warning') => void) {
         this.client = client;
@@ -68,7 +70,6 @@ export class ProfileRotator {
         const now = Date.now();
         const startOfDay = new Date().setHours(0, 0, 0, 0);
 
-        // Reset quotidien des stats si nécessaire
         if (!this.config.stats.lastStatsReset || this.config.stats.lastStatsReset < startOfDay) {
             this.config.stats.messagesToday = 0;
             this.config.stats.lastStatsReset = now;
@@ -76,18 +77,15 @@ export class ProfileRotator {
 
         this.config.stats.messagesToday++;
         this.config.stats.totalMessages++;
-        
-        // Save stats to config (debounced ideally, but here direct for simplicity)
     }
 
     private formatImage(url: string | undefined): string | undefined {
         if (!url) return undefined;
         if (url.startsWith('mp:')) return url;
         if (url.startsWith('http')) {
-            // Format Media Proxy Discord (mp:external/...)
             return `mp:external/${Buffer.from(url).toString('base64')}/https/${url.replace(/^https?:\/\//, '')}`;
         }
-        return url; // Asset key
+        return url; 
     }
 
     public start(config: RotatorConfig) {
@@ -96,7 +94,6 @@ export class ProfileRotator {
         this.isRunning = true;
         this.logCallback(`[ROTATOR PRO] Démarrage (Intervalle: ${config.interval}s)`, 'info');
         
-        // Start Pulse Timer (1s)
         this.startPulse();
         this.run();
     }
@@ -107,7 +104,6 @@ export class ProfileRotator {
         } else {
             const intervalChanged = newConfig.interval !== this.config.interval;
             
-            // Hotswap : Maintien des indices actuels
             this.config = {
                 ...newConfig,
                 currentStatusIndex: this.config.currentStatusIndex,
@@ -120,7 +116,6 @@ export class ProfileRotator {
                 stats: this.config.stats
             };
 
-            // Si l'intervalle a changé et que le système tourne, on reset le timer
             if (intervalChanged && this.isRunning) {
                 this.logCallback(`[ROTATOR PRO] Intervalle mis à jour → ${newConfig.interval}s`, 'info');
                 if (this.timer) clearTimeout(this.timer);
@@ -158,49 +153,16 @@ export class ProfileRotator {
     private resolveVariables(text: string): string {
         if (!text) return '';
         const now = new Date();
-        
-        // {time} -> HH:MM
         let resolved = text.replace(/{time}/g, now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        
-        // {date} -> DD/MM/YYYY
         resolved = resolved.replace(/{date}/g, now.toLocaleDateString());
-        
-        // {counter}
         resolved = resolved.replace(/{counter}/g, this.state.counter.toString());
-        
-        // {random} -> Emoji aléatoire
         const emojis = ['⚡', '🛡️', '🛰️', '💎', '🔥', '🌀', '🌊', '🌈', '✨', '🍀'];
         resolved = resolved.replace(/{random}/g, () => emojis[Math.floor(Math.random() * emojis.length)]);
-
-        // Statistics Variables (rpcStats style)
         if (this.config) {
             resolved = resolved.replace(/{messages_today}/g, this.config.stats.messagesToday.toString());
             resolved = resolved.replace(/{total_messages}/g, this.config.stats.totalMessages.toString());
         }
-        
         return resolved;
-    }
-
-    private parseActivity(text: string): { name: string, type: number } {
-        const lower = text.toLowerCase();
-        let name = text;
-        let type = 0; // PLAYING
-
-        if (lower.startsWith('playing ')) {
-            name = text.substring(8);
-            type = 0;
-        } else if (lower.startsWith('watching ')) {
-            name = text.substring(9);
-            type = 3;
-        } else if (lower.startsWith('listening to ')) {
-            name = text.substring(13);
-            type = 2;
-        } else if (lower.startsWith('competing in ')) {
-            name = text.substring(13);
-            type = 5;
-        }
-
-        return { name, type };
     }
 
     private async run() {
@@ -212,7 +174,6 @@ export class ProfileRotator {
             this.logCallback(`[ROTATOR PRO ERROR] ${e.message}`, 'error');
         }
 
-        // Jitter humain +/- 5s
         const jitter = (Math.random() * 10 - 5) * 1000;
         const delay = Math.max(2000, (this.config.interval * 1000) + jitter);
         
@@ -229,10 +190,9 @@ export class ProfileRotator {
 
         // 1. Update Custom Status
         if (cfg.enabledSections.status && cfg.statuses.length > 0) {
-            const statusText = cfg.statuses[cfg.currentStatusIndex];
+            const statusText = cfg.statuses[cfg.currentStatusIndex % cfg.statuses.length];
             const resolved = this.resolveVariables(statusText);
             try {
-                // Utilisation du module settings correct
                 await (this.client as any).settings.setCustomStatus({ text: resolved });
                 this.logCallback(`[IDENTITY] Statut → ${resolved}`, 'info');
                 changedSomething = true;
@@ -244,7 +204,7 @@ export class ProfileRotator {
 
         // 2. Update Bio
         if (cfg.enabledSections.bio && cfg.bios.length > 0) {
-            const bioText = cfg.bios[cfg.currentBioIndex];
+            const bioText = cfg.bios[cfg.currentBioIndex % cfg.bios.length];
             if (bioText && bioText.trim() !== '') {
                 const resolved = this.resolveVariables(bioText);
                 try {
@@ -258,34 +218,55 @@ export class ProfileRotator {
             cfg.currentBioIndex = (cfg.currentBioIndex + 1) % cfg.bios.length;
         }
 
-        // 3. Update Global Name (Pseudo) - avec COOLDOWN 30min
+        // 3. Update Global Name (Pseudo) - COOLDOWN Strict
         if (cfg.enabledSections.username && cfg.usernames.length > 0) {
             const now = Date.now();
             if (cfg.pausedUsernameUntil && now < cfg.pausedUsernameUntil) {
-                // Skip username rotation (cooldown)
+                // Cooldown actif
             } else {
-                const nameText = cfg.usernames[cfg.currentUsernameIndex];
+                const nameText = cfg.usernames[cfg.currentUsernameIndex % cfg.usernames.length];
                 const resolved = this.resolveVariables(nameText);
                 try {
                     await (this.client as any).settings.setGlobalName(resolved);
                     this.logCallback(`[IDENTITY] Pseudo → ${resolved}`, 'info');
                     changedSomething = true;
-                    // Cooldown forcé de 30 min après chaque succès pour le pseudo
-                    cfg.pausedUsernameUntil = now + (30 * 60 * 1000);
+                    cfg.pausedUsernameUntil = now + (30 * 60 * 1000); // 30 min cooldown
                 } catch (e: any) {
-                    this.logCallback(`[IDENTITY ERROR] Échec Pseudo: ${e.message}`, 'error');
-                    if (e.status === 429) {
-                        cfg.pausedUsernameUntil = now + (60 * 60 * 1000);
-                    }
+                    this.logCallback(`[IDENTITY ERROR] Échec Pseudo (Rate-Limit probable): ${e.message}`, 'error');
+                    if (e.status === 429) cfg.pausedUsernameUntil = now + (60 * 60 * 1000);
                 }
                 cfg.currentUsernameIndex = (cfg.currentUsernameIndex + 1) % cfg.usernames.length;
             }
         }
 
-        // 4. Update Custom RPC (Equicord Style)
+        // 4. Update Badge (HypeSquad Rotation)
+        if (cfg.enabledSections.clanTag) { // On réutilise cette section ou on pourrait en créer une nouvelle
+            try {
+                const houses = ['HOUSE_BRILLIANCE', 'HOUSE_BRAVERY', 'HOUSE_BALANCE'];
+                const houseId = (this.currentHouseIndex % 3) + 1; // 1, 2, 3
+                await (this.client.user as any).setHypeSquad(houseId);
+                this.logCallback(`[IDENTITY] Badge HypeSquad → ${houses[this.currentHouseIndex % 3]}`, 'info');
+                this.currentHouseIndex++;
+                changedSomething = true;
+            } catch (e) {}
+        }
+
+        // 5. Update Clan Tag (Primary Guild)
+        if (cfg.enabledSections.clanTag && cfg.clanTags && cfg.clanTags.length > 0) {
+            const guildId = cfg.clanTags[cfg.currentClanTagIndex % cfg.clanTags.length];
+            try {
+                await (this.client as any).settings.setPrimaryGuild(guildId);
+                this.logCallback(`[IDENTITY] Clan Tag → Changé (Guild: ${guildId})`, 'info');
+                changedSomething = true;
+            } catch (e: any) {
+                this.logCallback(`[IDENTITY ERROR] Échec Clan Tag (Primary Guild): ${e.message}`, 'error');
+            }
+            cfg.currentClanTagIndex = (cfg.currentClanTagIndex + 1) % cfg.clanTags.length;
+        }
+
+        // 6. Update Custom RPC
         if (cfg.enabledSections.activity && cfg.customRPCs && cfg.customRPCs.length > 0) {
             const rpc = cfg.customRPCs[cfg.currentActivityIndex % cfg.customRPCs.length];
-            
             try {
                 const presence: any = {
                     name: this.resolveVariables(rpc.name),
@@ -299,22 +280,9 @@ export class ProfileRotator {
                         small_text: this.resolveVariables(rpc.smallText || '')
                     }
                 };
-
-                // Timestamps (Elapsed time)
-                if (rpc.showTimestamp) {
-                    presence.timestamps = { start: Date.now() }; // In selfbots, 'start' alone creates the elapsed counter
-                }
-
-                // Application ID Support (Stealth 0 or Custom)
+                if (rpc.showTimestamp) presence.timestamps = { start: Date.now() };
                 const appId = rpc.applicationId || "0";
                 
-                // Inject via Internal API (Selfbot specific for advanced RPC)
-                await (this.client as any).api.users['@me'].settings.patch({
-                    data: {
-                        custom_status: undefined, // Don't overwrite basic status
-                    }
-                });
-
                 this.client.user.setActivity(presence.name, {
                     type: presence.type,
                     details: presence.details,
@@ -323,34 +291,9 @@ export class ProfileRotator {
                     timestamps: presence.timestamps,
                     applicationId: appId !== "0" ? appId : undefined
                 } as any);
-
                 changedSomething = true;
             } catch (e) {}
             cfg.currentActivityIndex = (cfg.currentActivityIndex + 1) % cfg.customRPCs.length;
-        }
-
-        // 5. Update Clan Tag (Primary Guild) - avec COOLDOWN 30min (Même que Pseudo)
-        if (cfg.enabledSections.clanTag && cfg.clanTags && cfg.clanTags.length > 0) {
-            const now = Date.now();
-            // On réutilise le même cooldown que pour le pseudo par sécurité (Discord est strict sur l'identité)
-            if (cfg.pausedUsernameUntil && now < cfg.pausedUsernameUntil) {
-                // Skip clan tag rotation during shared identity cooldown
-            } else {
-                const guildId = cfg.clanTags[cfg.currentClanTagIndex];
-                try {
-                    await (this.client as any).settings.setPrimaryGuild(guildId);
-                    this.logCallback(`[IDENTITY] Clan Tag → Changé (Guild: ${guildId})`, 'info');
-                    changedSomething = true;
-                    // On définit le cooldown partagé si ce n'est pas déjà fait
-                    if (!cfg.pausedUsernameUntil) cfg.pausedUsernameUntil = now + (30 * 60 * 1000);
-                } catch (e: any) {
-                    this.logCallback(`[IDENTITY ERROR] Échec Clan Tag: ${e.message}`, 'error');
-                    if (e.status === 429) {
-                        cfg.pausedUsernameUntil = now + (60 * 60 * 1000);
-                    }
-                }
-                cfg.currentClanTagIndex = (cfg.currentClanTagIndex + 1) % cfg.clanTags.length;
-            }
         }
 
         if (changedSomething) {
@@ -363,6 +306,7 @@ export class ProfileRotator {
 
     public forceUpdate() {
         if (this.isRunning) {
+            this.logCallback("[ROTATOR PRO] Cycle de force initié par l'utilisateur", 'warning');
             this.applyCycle();
         }
     }
