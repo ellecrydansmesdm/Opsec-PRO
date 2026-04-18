@@ -39,17 +39,17 @@ export const AutoResponder = () => {
            <h1 style={{ fontSize: '32px', fontWeight: '900', letterSpacing: '-0.03em', color: 'white' }}>
              Auto <span style={{ color: 'var(--accent)', textShadow: '0 0 20px var(--accent-glow)' }}>Responder</span>
            </h1>
-           <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginTop: '5px', fontWeight: '700' }}>RÉPONSES_AUTOMATISÉES v1.2.1</p>
+            <p style={{ color: 'var(--text-dim)', fontSize: '13px', marginTop: '5px', fontWeight: '700' }}>Réponses Automatiques</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ textAlign: 'right' }}>
             <p style={{ fontSize: '10px', fontWeight: '900', color: config.enabled ? 'var(--success)' : 'var(--text-dim)', marginBottom: '2px' }}>
-              {config.enabled ? 'MOTEUR_ACTIF' : 'MOTEUR_STBY'}
+              {config.enabled ? 'SYSTÈME ACTIF' : 'SYSTÈME EN PAUSE'}
             </p>
-            <p style={{ fontSize: '9px', opacity: 0.3 }}>{config.rules.length} RÈGLES_CHARGÉES</p>
+            <p style={{ fontSize: '9px', opacity: 0.3 }}>{config.rules.length} RÈGLES CHARGÉES</p>
           </div>
-          <div onClick={() => saveConfig({ ...config, enabled: !config.enabled })} className={`nighty-toggle ${config.enabled ? 'active' : ''}`} style={{ width: '64px', height: '32px' }}>
-             <div className="nighty-toggle-handle" style={{ width: '26px', height: '26px' }}></div>
+          <div onClick={() => saveConfig({ ...config, enabled: !config.enabled })} className={`nighty-toggle ${config.enabled ? 'active' : ''}`} style={{ width: '48px', height: '24px' }}>
+             <div className="nighty-toggle-handle" style={{ width: '18px', height: '18px', top: '2px', left: config.enabled ? '26px' : '2px' }}></div>
           </div>
         </div>
       </div>
@@ -146,7 +146,7 @@ export const AutoResponder = () => {
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>
                  <div style={{ background: 'var(--accent-soft)', padding: '8px', borderRadius: '8px', color: 'var(--accent)' }}><MessageCircle size={18} /></div>
-                 Base de Connaissances Réactive
+                 Réponses enregistrées
               </h3>
               <div style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, padding: '5px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
                  TOTAL: {config.rules.length}
@@ -176,22 +176,22 @@ export const AutoResponder = () => {
                      <div style={{ flex: 1, fontSize: '13px', fontWeight: '600', opacity: 0.8, color: 'white', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {rule.replies[0]}
                      </div>
-                     <button 
-                       className="btn-danger" 
-                       style={{ width: '32px', height: '32px', padding: 0, opacity: 0.4, transition: 'all 0.2s ease', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-                      onClick={() => removeRule(i)}
-                      onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                      onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
-                    >
-                       <Trash2 size={18} />
-                    </button>
+                      <button 
+                        className="btn-danger" 
+                        style={{ width: '32px', height: '32px', padding: 0, opacity: 0.6, transition: 'all 0.2s ease', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }} 
+                       onClick={() => removeRule(i)}
+                       onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                       onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                     >
+                        <Trash2 size={16} />
+                     </button>
                  </div>
               ))}
               {config.rules.length === 0 && (
                  <div style={{ padding: '60px', textAlign: 'center', opacity: 0.15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <Bot size={50} style={{ marginBottom: '20px' }} />
-                    <p style={{ fontWeight: '900', fontSize: '12px', letterSpacing: '2px' }}>SYSTÈME_ACTUELLEMENT_VIDE</p>
-                    <p style={{ fontSize: '10px', marginTop: '5px' }}>Créez votre première règle à gauche pour commencer.</p>
+                    <p style={{ fontWeight: '900', fontSize: '12px', letterSpacing: '2px' }}>SYSTÈME VIDE</p>
+                    <p style={{ fontSize: '10px', marginTop: '5px' }}>Ajoutez une règle pour commencer.</p>
                  </div>
               )}
            </div>

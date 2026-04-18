@@ -12,6 +12,12 @@ const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.jso
 
 // Centralized settings logic replaced by utils/settings.ts import
 
+const notifySettingsUpdate = (mainWindow: BrowserWindow | null) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('settings-updated', getSettings());
+  }
+};
+
 export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: BotService | null, accountManager: AccountManager | null) {
   ipcMain.handle('get-settings', async () => {
     return { success: true, data: getSettings() };
@@ -76,6 +82,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
                  activity: true,
                  clanTag: false
                },
+               hypesquadHouse: 0,
                stats: {
                  messagesToday: 0,
                  totalMessages: 0
@@ -89,6 +96,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
         // Save global settings (like autoLogin) safely WITH the updated accounts
         const current = getSettings();
         saveSettings({ ...current, autoLogin: rememberMe });
+
+        // Notify UI about new account and autoLogin state
+        notifySettingsUpdate(mainWindow);
 
         return { success: true, user: result.user };
       }
@@ -113,6 +123,10 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
       if (res.success) {
           // Sync engine with latest settings
           botService.updateEngineSettings(getSettings());
+          
+          // Notify UI to refresh account list / selection
+          notifySettingsUpdate(mainWindow);
+
           mainWindow?.webContents.send('auto-login-success', res.user);
           return { success: true, data: { user: res.user } };
       }
@@ -124,18 +138,24 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('remove-account', (_, id) => {
     if (!accountManager) return { success: false, error: 'AccountManager non initialisé' };
     accountManager.removeAccount(id);
+    notifySettingsUpdate(mainWindow);
     return { success: true };
   });
 
   ipcMain.on('logout', () => {
     const current = getSettings();
+    // Only reset autoLogin on EXPLICIT logout. This ensures the session IS remembered on app restart.
     saveSettings({ ...current, autoLogin: false });
     if (botService) botService.destroy();
-    // Logic to re-init botService should be handled in main.ts or passed as a ref
   });
 
   ipcMain.handle('get-user-data', () => {
     return { success: true, data: botService?.getProfile() || null };
+  });
+
+  ipcMain.handle('log:info', (_, { message, type }) => {
+    botService?.log(message, type || 'info');
+    return { success: true };
   });
 
   ipcMain.handle('get-channels', async () => {
@@ -261,6 +281,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
       if (accountManager && updated.accounts) {
         accountManager.setAccounts(updated.accounts);
       }
+      
+      notifySettingsUpdate(mainWindow);
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -521,5 +543,82 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
     const success = await lyricsService.importLrcFile(artist, title, result.filePaths[0]);
     return { success };
+  });
+
+  // --- V1.2.1 Pomelo Sniper Handlers ---
+  ipcMain.handle('pomelo:check', async (_, username) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkPomelo(username);
+  });
+
+  ipcMain.handle('pomelo:claim', async (_, { username, password }) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.claimPomelo(username, password);
+  });
+
+  ipcMain.handle('pomelo:start-batch', async (_, data) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.batchCheckPomelo(data.usernames, { 
+      delay: data.delay, 
+      autoClaim: data.autoClaim, 
+      password: data.password 
+    });
+  });
+
+  ipcMain.handle('pomelo:stop-batch', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.stopPomeloBatch();
+  });
+
+  if (botService) {
+    botService.on('pomelo-update', (data) => {
+      mainWindow?.webContents.send('pomelo-update', data);
+    });
+  }
+
+  // --- Group Pro & Sentinel Duo Handlers ---
+  ipcMain.handle('group:start-rename', async (_, { channelId, names, delay }) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.startGroupRename(channelId, names, delay);
+  });
+
+  ipcMain.handle('group:stop-rename', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.stopGroupRename();
+  });
+
+  ipcMain.handle('sentinel:start', async (_, { partnerToken, groupIds, groupLinks }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.protectionService.startSentinel(partnerToken, groupIds, groupLinks);
+  });
+
+  ipcMain.handle('sentinel:stop', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.protectionService.stopSentinel();
+  });
+
+  ipcMain.handle('sentinel:status', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return { success: true, data: botService.protectionService.getStatus() };
+  });
+
+  ipcMain.handle('sentinel:toggle-shield', async (_, { groupId, active }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.protectionService.toggleShield(groupId, active);
+  });
+
+  ipcMain.handle('group:clone', async (_, { groupId }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.cloneGroup(groupId);
+  });
+
+  ipcMain.handle('group:mass-add', async (_, { groupId, userIds, delay }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.massAddRecipients(groupId, userIds, delay);
+  });
+
+  ipcMain.handle('hypersquad:set', async (_, { houseId }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.setHypeSquad(houseId);
   });
 }

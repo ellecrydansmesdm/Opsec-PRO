@@ -65,6 +65,7 @@ export interface RotatorConfig {
     activity: boolean;
     clanTag: boolean;
   };
+  hypesquadHouse: number; // 0: None, 1: Bravery, 2: Brilliance, 3: Balance
   stats: {
     messagesToday: number;
     totalMessages: number;
@@ -106,8 +107,12 @@ export interface AppSettings {
   // Audio Config
   audioVolume: number; // 0 to 1
   audioEnabled: boolean;
+  cyberCursorEnabled: boolean;
+  customCursorUrl?: string; // New: Custom cursor support
   // Multi-account
   accounts: Account[];
+  // Sentinel Mode (Anti-Kick)
+  sentinelEnabled: boolean;
 }
 
 export interface FarmerConfig {

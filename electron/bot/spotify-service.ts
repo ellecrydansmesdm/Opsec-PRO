@@ -89,16 +89,22 @@ export class SpotifyService {
     private async runLoop() {
         if (this.interval) clearInterval(this.interval);
         
+        let localCheckCounter = 0;
+
         // Fast polling loop to update the lyrics based on the cached activity
-        this.interval = setInterval(async () => {
+        this.interval = setInterval(() => {
             if (!this.isRunning) return;
             
-            // Step 1: Force a local check (Very fast on Windows)
-            await this.checkLocalSpotify();
+            // Step 1: Force a local check (Every 3 seconds instead of every 1s to avoid high CPU usage)
+            localCheckCounter++;
+            if (localCheckCounter >= 6) {
+                localCheckCounter = 0;
+                this.checkLocalSpotify().catch(() => {});
+            }
             
             // Step 2: Sync lyrics with whatever we found (Local or Discord)
-            await this.syncLyrics();
-        }, 1000);
+            this.syncLyrics().catch(() => {});
+        }, 500);
     }
 
     private async checkLocalSpotify() {
@@ -231,10 +237,10 @@ export class SpotifyService {
             };
         }
 
-        // DIAGNOSTIC LOG (Toutes les 2 minutes)
+        // DIAGNOSTIC LOG (Toutes les 10 minutes)
         if (!this._debugTick) this._debugTick = 0;
         this._debugTick++;
-        if (this._debugTick % 120 === 0) {
+        if (this._debugTick % 1200 === 0) {
             const source = spotifyActivity?.isLocal ? 'WINDOWS_LOCAL' : 'DISCORD_GATEWAY';
             this.log(`DIAGNOSTIC: Analyse du compte [${this.client.user.tag}]. Spotify = ${spotifyActivity ? 'OUI (' + source + ')' : 'NON'}`, 'info');
         }
@@ -301,7 +307,10 @@ export class SpotifyService {
             // mode: Paroles Synchronisées
             const startRaw = spotifyActivity.timestamps.start as any;
             const startTime = typeof startRaw === 'number' ? startRaw : new Date(startRaw).getTime();
-            const progressMs = Date.now() - startTime;
+            
+            // OPSEC MAGIC: Add an offset (+800ms) to compensate for Discord's API rate limit and visual delay.
+            // This ensures the lyrics appear on screen at the exact millisecond they are sung.
+            const progressMs = Date.now() - startTime + 800; 
 
             for (let i = 0; i < this.lyrics.length; i++) {
                 if (this.lyrics[i].timeMs <= progressMs) {

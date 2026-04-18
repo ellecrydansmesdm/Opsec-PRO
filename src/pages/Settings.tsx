@@ -34,7 +34,7 @@ export const Settings = () => {
   const t = {
     fr: {
       title: "Configuration",
-      description: "Personnalisez votre instance Opsec PRO v1.1.0",
+      description: "Personnalisez votre instance Opsec PRO",
       general: "GÉNÉRAL",
       theme: "THÈME",
       accounts: "COMPTES",
@@ -45,10 +45,9 @@ export const Settings = () => {
       autoLoginDesc: "Se connecte automatiquement au démarrage (Auto-login OFF = Login manuel).",
       appDetection: "Détection d'Application Active",
       appDetectionDesc: "Permet au bot de détecter vos jeux/apps pour enrichir votre statut (Rich Presence).",
+      sentinelMode: "Sentinel - Anti Kick Duo",
+      sentinelDesc: "Active le système de protection mutuelle (nécessite deux tokens pour fonctionner).",
       language: "Langue",
-      spotify: "Intégration Spotify",
-      lyrics: "Paroles en Temps Réel",
-      lyricsDesc: "Opsec Pro utilise LRCLIB pour afficher les paroles en temps réel sur votre statut Discord.",
       wallpaper: "Fond d'écran & Visuels",
       wallpaperUrl: "URL de l'image (Wallpaper)",
       wallpaperDesc: "Supporte URL web ou fichiers locaux.",
@@ -58,12 +57,12 @@ export const Settings = () => {
       addAccount: "Ajouter un compte",
       active: "ACTIF",
       shortcuts: "Raccourcis Commandes",
-      devCredit: "DEV BY FAHD",
-      helpText: "mp @ellecrydansmesdm si besoin d'aide"
+      devCredit: "CRÉÉ PAR FAHD",
+      helpText: "contactez @ellecrydansmesdm en cas de besoin"
     },
     en: {
       title: "Configuration",
-      description: "Customize your Opsec PRO v1.1.0 instance",
+      description: "Customize your Opsec PRO instance",
       general: "GENERAL",
       theme: "THEME",
       accounts: "ACCOUNTS",
@@ -74,10 +73,9 @@ export const Settings = () => {
       autoLoginDesc: "Automatically connects on startup (OFF = Manual Login).",
       appDetection: "Active App Detection",
       appDetectionDesc: "Allows the bot to detect your games/apps for Discord Rich Presence.",
+      sentinelMode: "Sentinel - Anti Kick Duo",
+      sentinelDesc: "Enables the mutual protection system (requires two tokens to work).",
       language: "Language",
-      spotify: "Spotify Integration",
-      lyrics: "Real-time Lyrics",
-      lyricsDesc: "Opsec Pro uses LRCLIB to display real-time lyrics on your Discord status.",
       wallpaper: "Wallpaper & Visuals",
       wallpaperUrl: "Image URL (Wallpaper)",
       wallpaperDesc: "Supports web URLs or local files.",
@@ -220,6 +218,15 @@ export const Settings = () => {
                       </div>
                    </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <div style={{ maxWidth: '80%' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{(t as any).sentinelMode}</p>
+                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>{(t as any).sentinelDesc}</p>
+                       </div>
+                       <div onClick={() => updateSetting('sentinelEnabled', !settings.sentinelEnabled)} className={`nighty-toggle ${settings.sentinelEnabled ? 'active' : ''}`}>
+                          <div className="nighty-toggle-handle"></div>
+                       </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                        <p style={{ fontSize: '14px', fontWeight: '700' }}>{t.language}</p>
                        <select value={settings.language} onChange={e => updateSetting('language', e.target.value as 'fr' | 'en')} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'white', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}>
                           <option value="fr">Français (FR)</option>
@@ -229,49 +236,6 @@ export const Settings = () => {
                  </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '30px' }}>
-                 <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>
-                    <Music size={20} color="#1DB954" /> {t.spotify}
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                       <div style={{ maxWidth: '80%' }}>
-                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>{t.lyrics}</p>
-                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>{t.lyricsDesc}</p>
-                       </div>
-                       <div onClick={() => updateSetting('spotifyLyricsEnabled', !settings.spotifyLyricsEnabled)} className={`nighty-toggle ${settings.spotifyLyricsEnabled ? 'active' : ''}`} style={{ '--accent': '#1DB954' } as any}>
-                          <div className="nighty-toggle-handle"></div>
-                       </div>
-                    </div>
-
-                    <div style={{ padding: '20px', background: 'rgba(29, 185, 84, 0.05)', borderRadius: '14px', border: '1px solid rgba(29, 185, 84, 0.2)' }}>
-                       <p style={{ fontSize: '11px', fontWeight: '900', color: '#1DB954', marginBottom: '15px', letterSpacing: '0.05em' }}>IMPORT MANUEL (.LRC)</p>
-                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                             <input id="lrc-artist" type="text" className="input-field" placeholder="Artiste (ex: Sleynueve)" style={{ flex: 1, fontSize: '11px' }} />
-                             <input id="lrc-title" type="text" className="input-field" placeholder="Titre (ex: Sunburn)" style={{ flex: 1, fontSize: '11px' }} />
-                          </div>
-                          <button 
-                            className="btn-primary" 
-                            style={{ width: '100%', background: '#1DB954', borderColor: '#1DB954', fontSize: '11px' }}
-                            onClick={async () => {
-                               const artist = (document.getElementById('lrc-artist') as HTMLInputElement).value;
-                               const title = (document.getElementById('lrc-title') as HTMLInputElement).value;
-                               if (!artist || !title) {
-                                  showToast('Veuillez entrer l\'artiste et le titre', 'danger');
-                                  return;
-                               }
-                               const res = await (window as any).electronAPI.spotifyImportLrc({ artist, title });
-                               if (res.success) showToast('Fichier .lrc importé avec succès !', 'success');
-                               else showToast('Importation annulée ou échouée', 'danger');
-                            }}
-                          >
-                             <Upload size={14} /> IMPORTER FICHIER .LRC
-                          </button>
-                       </div>
-                    </div>
-                 </div>
-              </div>
 
               <div className="glass-card" style={{ padding: '30px' }}>
                  <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: '900' }}>
@@ -307,16 +271,40 @@ export const Settings = () => {
                              updateSetting('audioVolume', vol);
                              if (vol > 0) audioService.play('click');
                           }}
-                          style={{ width: '100%', accentColor: 'var(--accent)' }}
+                          style={{ width: '100%', accentColor: 'var(--accent)', display: 'block', margin: '0', boxSizing: 'border-box' }}
                        />
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-                       <div style={{ maxWidth: '80%' }}>
-                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>Curseur Cyber Blue</p>
-                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>Utiliser un curseur SVG personnalisé sur les éléments interactifs.</p>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                       <div style={{ maxWidth: '70%' }}>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>Curseur Personnalisé</p>
+                          <p className="caption" style={{ opacity: 0.4, textTransform: 'none', marginTop: '4px', lineHeight: '1.4' }}>Utilisez votre propre fichier image (.svg, .png) comme curseur.</p>
                        </div>
-                       <MousePointer size={18} color="var(--accent)" style={{ opacity: 0.5 }} />
+                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          {settings.customCursorUrl && (
+                             <button className="btn-danger" style={{ padding: '6px', width: '30px', height: '30px', justifyContent: 'center' }} onClick={() => updateSetting('customCursorUrl', '')}>
+                                <Trash2 size={14} />
+                             </button>
+                          )}
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '8px 12px', fontSize: '10px' }}
+                            onClick={async () => {
+                               const res = await (window as any).electronAPI.selectFile();
+                               if (res.success && res.data) {
+                                  const protocolUrl = `local-resource://${res.data.replace(/\\/g, '/')}`;
+                                  updateSetting('customCursorUrl', protocolUrl);
+                                  updateSetting('cyberCursorEnabled', true);
+                                  showToast('Curseur importé avec succès !', 'success');
+                               }
+                            }}
+                          >
+                             <MousePointer size={14} /> IMPORTER
+                          </button>
+                          <div onClick={() => updateSetting('cyberCursorEnabled', !settings.cyberCursorEnabled)} className={`nighty-toggle ${settings.cyberCursorEnabled ? 'active' : ''}`}>
+                             <div className="nighty-toggle-handle"></div>
+                          </div>
+                       </div>
                     </div>
                  </div>
               </div>
@@ -462,14 +450,14 @@ export const Settings = () => {
                            <label className="input-label" style={{ marginBottom: 0 }}>{t.blurIntensity}</label>
                            <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--accent)' }}>{settings.themeBlur || 0}px</span>
                         </div>
-                        <input type="range" min="0" max="25" step="1" value={settings.themeBlur || 0} onChange={e => updateSetting('themeBlur', parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                        <input type="range" min="0" max="25" step="1" value={settings.themeBlur || 0} onChange={e => updateSetting('themeBlur', parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)', display: 'block', margin: '0', boxSizing: 'border-box' }} />
                      </div>
                      <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                            <label className="input-label" style={{ marginBottom: 0 }}>{t.opacity}</label>
                            <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--accent)' }}>{Math.round((settings.themeOpacity || 1) * 100)}%</span>
                         </div>
-                        <input type="range" min="0.30" max="1" step="0.05" value={settings.themeOpacity || 1} onChange={e => updateSetting('themeOpacity', parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                        <input type="range" min="0.30" max="1" step="0.05" value={settings.themeOpacity || 1} onChange={e => updateSetting('themeOpacity', parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)', display: 'block', margin: '0', boxSizing: 'border-box' }} />
                      </div>
                   </div>
                 </div>

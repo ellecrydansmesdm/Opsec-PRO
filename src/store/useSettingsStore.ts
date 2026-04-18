@@ -45,7 +45,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       rules: []
     },
     audioVolume: 0.5,
-    audioEnabled: true
+    audioEnabled: true,
+    cyberCursorEnabled: false,
+    sentinelEnabled: false
   },
   setSettings: (settings) => set({ settings }),
   updateSetting: (key, value) => {

@@ -18,7 +18,9 @@ export const defaultSettings: AppSettings = {
     themeBackground: '',
     audioVolume: 0.5,
     audioEnabled: true,
-    accounts: []
+    cyberCursorEnabled: false,
+    accounts: [],
+    sentinelEnabled: false
 };
 
 export const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.json');

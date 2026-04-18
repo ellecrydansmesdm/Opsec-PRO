@@ -4,6 +4,8 @@ import { useUserStore } from "@/store/useUserStore";
 import { useLogsStore } from "@/store/useLogsStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { StatCircle } from "@/components/ui/StatCircle";
+import nitroIcon from '@/assets/nitro.png';
+import braveryIcon from '@/assets/bravery.png';
 import { NotificationCard } from "@/components/ui/NotificationCard";
 import { UptimeCounter } from "@/components/ui/UptimeCounter";
 
@@ -83,18 +85,44 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
                 </div>
 
                 {/* User Info Section */}
-                <div style={{ minWidth: 0 }}>
-                  <h2 style={{ 
-                    fontSize: '20px', 
-                    color: 'white', 
-                    marginBottom: '2px', 
-                    fontWeight: '900',
-                    maxWidth: '220px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }} title={user.displayName || user.username}>{user.displayName || user.username}</h2>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6 }}>{user.username}#{user.id.slice(-4)}</p>
+                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ 
+                      fontSize: '20px', 
+                      color: 'white', 
+                      marginBottom: '0', 
+                      fontWeight: '900',
+                      maxWidth: '180px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }} title={user.displayName || user.username}>{user.displayName || user.username}</h2>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6, marginBottom: '4px' }}>{user.username}#{user.id.slice(-4)}</p>
+                  
+                  {/* Badges Container */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {user.badges?.map((badge, i) => (
+                      <div key={i} className="discord-badge-mini" title={badge.toUpperCase()}>
+                        {badge === 'nitro' ? (
+                          <img src={nitroIcon} alt="nitro" style={{ width: '20px', height: '20px' }} />
+                        ) : badge.includes('bravery') ? (
+                          <img src={braveryIcon} alt="bravery" style={{ width: '20px', height: '20px' }} />
+                        ) : badge.includes('house') ? (
+                          <div style={{ 
+                            background: badge.includes('brilliance') ? '#f47b67' : '#44dcb3',
+                            borderRadius: '4px', padding: '2px 6px', fontSize: '8px', fontWeight: 'bold', color: 'white'
+                          }}>
+                            {badge.split(' ').pop()?.toUpperCase()}
+                          </div>
+                        ) : (
+                          <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '2px 6px', fontSize: '8px', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold' }}>
+                            {badge.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -116,7 +144,7 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
                 </div>
                 <div>
                   <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>Nitro status</p>
-                  <p style={{ fontSize: '13px', color: user.nitro ? '#10b981' : 'var(--text-dim)', fontWeight: '800' }}>
+                  <p style={{ fontSize: '13px', color: user.nitro ? 'var(--success)' : 'var(--text-dim)', fontWeight: '800' }}>
                     {user.nitroExpiry || (user.nitro ? 'Active' : 'Inactive')}
                   </p>
                 </div>

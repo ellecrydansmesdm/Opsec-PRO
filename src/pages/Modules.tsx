@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, Activity, RefreshCw, ShieldCheck, Zap, UserPlus, Volume2, Users, MessageSquare, X, Check } from 'lucide-react';
+import { Trash2, AlertTriangle, Activity, RefreshCw, ShieldCheck, Zap, UserPlus, Volume2, Users, MessageSquare, X, Check, CheckCircle2 } from 'lucide-react';
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useUserStore } from "@/store/useUserStore";
 import { DoubleChannelSelector } from "@/components/ui/DoubleChannelSelector";
 import { SelectionModal } from "@/components/ui/SelectionModal";
 import { useLogsStore } from "@/store/useLogsStore";
 import { SpamSystem } from "@/components/modules/SpamSystem";
+import { PomeloSniper } from "@/components/modules/PomeloSniper";
+import { audioService } from '@/services/AudioService';
+import { useActionValidator } from '@/hooks/useActionValidator';
 
 interface ModulesProps {
   onConfirm: (data: any) => void;
@@ -35,7 +38,11 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   const [dmAllText, setDmAllText] = useState("Hello {user} !");
   const [sendingDmAll, setSendingDmAll] = useState(false);
   const [isClosingDMs, setIsClosingDMs] = useState(false);
+  const [isSyncingSelection, setIsSyncingSelection] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
+
+  const currentAccount = React.useMemo(() => settings.accounts?.find(a => a.id === user?.id), [settings.accounts, user?.id]);
+  const rotator = currentAccount?.rotator;
 
   // Security: Reset targets when switching accounts
   React.useEffect(() => {
@@ -55,20 +62,24 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const { validateTarget } = useActionValidator(showToast);
+
   const handlePurge = async () => {
     if (purging) {
+      audioService.play('module_stop');
       await window.electronAPI.stopPurge();
       setPurging(false);
       return;
     }
-    if (!purgeChannelId || purgeChannelId.trim() === '') {
-      showToast('Veuillez sélectionner un salon cible pour la purge !', 'danger');
-      return;
-    }
+    if (!validateTarget(purgeChannelId, 'Mass Purge')) return;
+    
     if (!amount || amount <= 0) {
+      audioService.play('error');
       showToast('Veuillez spécifier un nombre de messages à supprimer !', 'danger');
       return;
     }
+    
+    audioService.play('module_start');
     setPurging(true);
     localStorage.setItem('lastPurgeChannel', purgeChannelId);
     await window.electronAPI.startPurge({ 
@@ -77,6 +88,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         purgeAll: settings.adminPurge, 
         delay: purgeDelay 
     });
+    audioService.play('success');
     setPurging(false);
   };
 
@@ -88,12 +100,15 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   };
 
   const handleStopDMAll = async () => {
+    audioService.play('module_stop');
     await window.electronAPI.stopDMAll();
     setSendingDmAll(false);
   };
 
-  const openFriendsSelection = async () => {
+   const openFriendsSelection = async () => {
+    setIsSyncingSelection(true);
     const res = await window.electronAPI.getFriendsList();
+    setIsSyncingSelection(false);
     if (res.success && res.data) {
       setSelectionItems(res.data.map((f: any) => ({ id: f.id, name: f.username, avatar: f.avatar })));
       setSelectionType('friends');
@@ -102,7 +117,9 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   };
 
   const openGroupsSelection = async () => {
+    setIsSyncingSelection(true);
     const res = await window.electronAPI.getGroupsList();
+    setIsSyncingSelection(false);
     if (res.success && res.data) {
       setSelectionItems(res.data.map((g: any) => ({ id: g.id, name: g.name })));
       setSelectionType('groups');
@@ -111,7 +128,9 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   };
 
   const openServersSelection = async () => {
+    setIsSyncingSelection(true);
     const res = await window.electronAPI.getServersList();
+    setIsSyncingSelection(false);
     if (res.success && res.data) {
       setSelectionItems(res.data.map((s: any) => ({ id: s.id, name: s.name, avatar: s.icon })));
       setSelectionType('servers');
@@ -159,17 +178,79 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     });
   };
 
+  const handleHouseUpdate = (houseId: number) => {
+    if (!settings.accounts || !user) return;
+    const updatedAccounts = settings.accounts.map(acc => {
+        if (acc.id === user.id && acc.rotator) {
+            return { 
+                ...acc, 
+                rotator: { ...acc.rotator, hypesquadHouse: houseId }
+            };
+        }
+        return acc;
+    });
+    updateSetting('accounts', updatedAccounts);
+  };
+
   return (
     <div 
       className="custom-scrollbar modules-grid" 
       style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))', 
         gridAutoFlow: 'dense',
         gap: '24px', 
-        padding: '10px 10px 80px 10px' 
+        padding: '10px 10px 80px 10px',
+        maxWidth: '100%',
+        overflowX: 'hidden'
       }}
     >
+      
+      {/* Sync Overlay */}
+      {isSyncingSelection && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'rgba(5, 7, 15, 0.6)',
+          backdropFilter: 'blur(15px)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: 'fade-in 0.3s ease-out'
+        }}>
+           <div style={{ position: 'relative', marginBottom: '30px' }}>
+              <div style={{ 
+                width: '80px', height: '80px', 
+                border: '3px solid transparent', 
+                borderTopColor: 'var(--accent)', 
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <div style={{ 
+                position: 'absolute', inset: '10px',
+                border: '2px solid transparent', 
+                borderBottomColor: 'var(--accent)', 
+                opacity: 0.5,
+                borderRadius: '50%',
+                animation: 'spin 2s linear reverse infinite'
+              }}></div>
+              <RefreshCw size={30} color="var(--accent)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', filter: 'drop-shadow(0 0 10px var(--accent-glow))' }} />
+           </div>
+           
+           <h3 style={{ fontFamily: 'Orbitron', letterSpacing: '4px', fontSize: '14px', color: 'white', textShadow: '0 0 15px var(--accent-glow)', marginBottom: '10px' }}>
+              DECRYPTING DATA...
+           </h3>
+           <p style={{ fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '2px', fontWeight: '900' }}>
+              PLEASE WAIT WHILE WE INITIALIZE NEURAL SYNC
+           </p>
+           
+           <div style={{ marginTop: '40px', width: '200px', height: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ width: '40%', height: '100%', background: 'var(--accent)', boxShadow: '0 0 10px var(--accent-glow)', animation: 'indeterminate-progress 1.5s infinite ease-in-out' }}></div>
+           </div>
+        </div>
+      )}
       
       {/* Mass Clear Card */}
       <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', overflow: 'hidden' }}>
@@ -177,8 +258,8 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
           <div style={{ padding: '12px', background: 'var(--accent-soft)', borderRadius: '12px', color: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}><Trash2 size={22} /></div>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Mass Clear Pro</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Optimized Deletion Algorithm</p>
+            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Vider le salon</h2>
+            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Suppression rapide de messages</p>
           </div>
         </div>
 
@@ -190,7 +271,14 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
                 <span className="caption">Messages à supprimer</span>
                 <span style={{ color: 'var(--accent)', fontWeight: '900' }}>{amount >= 1000 ? 'ALL' : amount}</span>
             </div>
-            <input type="range" min="1" max="1000" value={amount} onChange={(e) => setAmount(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+            <input 
+              type="range" 
+              min="1" 
+              max="1000" 
+              value={amount} 
+              onChange={(e) => setAmount(parseInt(e.target.value))} 
+              style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer', boxSizing: 'border-box' }} 
+            />
           </div>
 
           <div style={{ padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -198,7 +286,15 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
                 <span className="caption">Délai entre suppression</span>
                 <span style={{ color: purgeDelay < 500 ? 'var(--warning)' : 'var(--accent)', fontWeight: '900' }}>{purgeDelay}ms</span>
             </div>
-            <input type="range" min="100" max="5000" step="100" value={purgeDelay} onChange={(e) => setPurgeDelay(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+            <input 
+              type="range" 
+              min="100" 
+              max="5000" 
+              step="100" 
+              value={purgeDelay} 
+              onChange={(e) => setPurgeDelay(parseInt(e.target.value))} 
+              style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer', boxSizing: 'border-box' }} 
+            />
             {purgeDelay < 500 && <p style={{ fontSize: '9px', color: 'var(--warning)', marginTop: '5px' }}>⚠️ Risque de rate-limit en dessous de 500ms</p>}
           </div>
 
@@ -214,6 +310,11 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               <div className="nighty-toggle-handle"></div>
             </div>
           </div>
+          <p style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '-8px', marginBottom: '8px', padding: '0 5px' }}>
+            {settings.adminPurge 
+              ? "⚡ MODE ADMIN : Supprime TOUS les messages du salon (nécessite la permission 'Gérer les messages')." 
+              : "🛡️ MODE PERSO : Supprime uniquement VOS messages (plus sûr, plus lent)."}
+          </p>
 
           <button 
             onClick={handlePurge} 
@@ -241,28 +342,31 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
           <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)', boxShadow: '0 0 20px var(--danger-glow)' }}><AlertTriangle size={22} /></div>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Account Sanitizer</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Clean & Refresh Operations</p>
+            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Nettoyage de compte</h2>
+            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Optimisation et rafraîchissement</p>
           </div>
         </div>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             <button 
               onClick={openGroupsSelection} 
               disabled={isProcessingGroups || isProcessingFriends || isProcessingServers}
               className="btn-primary" 
               style={{ 
+                flex: '1 1 130px',
                 background: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
                 color: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
                 border: `1px solid rgba(239, 68, 68, 0.2)`, 
                 fontSize: '11px', 
                 gap: '8px',
-                opacity: (isProcessingFriends || isProcessingServers) ? 0.4 : 1
+                opacity: (isProcessingFriends || isProcessingServers) ? 0.4 : 1,
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
               }}
             >
               {isProcessingGroups ? <RefreshCw className="animate-spin" size={14} /> : <MessageSquare size={14} />}
-              {isProcessingGroups ? 'En cours...' : 'Quitter Groupes'}
+              <span>{isProcessingGroups ? 'En cours...' : 'Quitter Groupes'}</span>
             </button>
             
             <button 
@@ -270,16 +374,20 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               disabled={isProcessingFriends || isProcessingGroups || isProcessingServers}
               className="btn-primary" 
               style={{ 
+                flex: '1 1 130px',
                 background: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
                 color: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
                 border: `1px solid rgba(239, 68, 68, 0.2)`, 
                 fontSize: '11px', 
                 gap: '8px',
-                opacity: (isProcessingGroups || isProcessingServers) ? 0.4 : 1
+                opacity: (isProcessingGroups || isProcessingServers) ? 0.4 : 1,
+                borderRadius: '12px',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
               }}
             >
               {isProcessingFriends ? <RefreshCw className="animate-spin" size={14} /> : <Users size={14} />}
-              {isProcessingFriends ? 'En cours...' : 'Vider les Amis'}
+              <span>{isProcessingFriends ? 'En cours...' : 'Vider les Amis'}</span>
             </button>
 
             <button 
@@ -287,11 +395,15 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               disabled={isProcessingServers || isProcessingFriends || isProcessingGroups}
               className="btn-primary" 
               style={{ 
-                background: (isProcessingServers || isProcessingFriends || isProcessingGroups) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: (isProcessingServers || isProcessingFriends || isProcessingGroups) ? 'var(--accent)' : 'var(--danger)', 
-                border: `1px solid rgba(239, 68, 68, 0.2)`, 
-                fontSize: '11px', 
-                gap: '8px',
+                flex: '1 1 130px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap',
+                background: 'rgba(255,184,0,0.05)',
+                color: 'var(--warning)',
+                border: '1px solid rgba(255,184,0,0.2)',
+                boxShadow: 'none',
                 opacity: (isProcessingFriends || isProcessingGroups) ? 0.4 : 1
               }}
             >
@@ -334,9 +446,9 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
             </button>
           </div>
           
-          <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid var(--border)' }}>
+          <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid var(--border)' }}>
              <label className="caption" style={{ display: 'block', marginBottom: '10px' }}>DM ALL (Amis & Groupes)</label>
-             <textarea value={dmAllText} onChange={e => setDmAllText(e.target.value)} placeholder="Message... {user} pour mention" style={{ width: '100%', height: '80px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '11px', resize: 'none' }} />
+             <textarea value={dmAllText} onChange={e => setDmAllText(e.target.value)} placeholder="Message... {user} pour mention" style={{ width: '100%', height: '80px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '11px', resize: 'none' }} />
              
              <button 
               onClick={sendingDmAll ? handleStopDMAll : () => {
@@ -375,6 +487,11 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         <SpamSystem showToast={showToast} />
       </div>
 
+      {/* NEW: Pomelo Username Sniper Module */}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <PomeloSniper showToast={showToast} />
+      </div>
+
 
       {/* Spotify Lyrics Card */}
       <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.3s' }}>
@@ -394,7 +511,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
             <div>
               <p style={{ fontSize: '14px', fontWeight: '800', color: 'white' }}>Paroles en Temps Réel</p>
               <p className="caption" style={{ opacity: 0.4, textTransform: 'none', fontSize: '10px', lineHeight: '1.4', marginTop: '5px' }}>
-                Opsec Pro utilise LRCLIB pour afficher les paroles en temps réel sur votre statut Discord. Plus besoin de cookie !
+                Opsec Pro utilise LRCLIB pour afficher les paroles en temps reel.
               </p>
             </div>
             <div 
@@ -402,7 +519,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
                 const newState = !settings.spotifyLyricsEnabled;
                 updateSetting('spotifyLyricsEnabled', newState);
                 await window.electronAPI.toggleSpotifyLyrics({ enabled: newState, cookie: settings.spotifyCookie });
-                showToast(newState ? "Lyrics Status Activé" : "Lyrics Status Désactivé", newState ? 'success' : 'danger');
+                showToast(newState ? "Lyrics Status Active" : "Lyrics Status Desactive", newState ? 'success' : 'danger');
               }} 
               className={`nighty-toggle ${settings.spotifyLyricsEnabled ? 'active' : ''}`}
               style={{ '--accent': '#1DB954' } as any}
@@ -410,6 +527,75 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               <div className="nighty-toggle-handle"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* HypeSquad House Selector Module */}
+      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.4s' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#5865F2', boxShadow: '0 0 15px rgba(88, 101, 242, 0.4)' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+          <div style={{ padding: '12px', background: 'rgba(88, 101, 242, 0.1)', borderRadius: '12px', color: '#5865F2', boxShadow: '0 0 20px rgba(88, 101, 242, 0.2)' }}>
+            <ShieldCheck size={22} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>HypeSquad House</h2>
+            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Discord Identity Badge</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            {[
+              { id: 1, name: 'Bravery', color: '#9b84ee', icon: '🛡️' },
+              { id: 2, name: 'Brilliance', color: '#f47b67', icon: '✨' },
+              { id: 3, name: 'Balance', color: '#45ddc0', icon: '⚖️' }
+            ].map(house => (
+              <button 
+                key={house.id}
+                onClick={async () => {
+                  const res = await (window.electronAPI as any).setHypeSquadBadge(house.id);
+                  if (res.success) {
+                    handleHouseUpdate(house.id);
+                    showToast(`Badge ${house.name} active !`);
+                  } else {
+                    showToast(res.error || 'Erreur HypeSquad', 'danger');
+                  }
+                }}
+                style={{ 
+                  padding: '15px 5px', borderRadius: '12px', 
+                  background: rotator?.hypesquadHouse === house.id ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.2)',
+                  border: `1px solid ${rotator?.hypesquadHouse === house.id ? house.color : 'rgba(255,255,255,0.05)'}`,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: '0.2s', position: 'relative'
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>{house.icon}</span>
+                <span style={{ fontSize: '9px', fontWeight: '900', color: rotator?.hypesquadHouse === house.id ? house.color : 'white' }}>{house.name.toUpperCase()}</span>
+                {rotator?.hypesquadHouse === house.id && (
+                  <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
+                    <CheckCircle2 size={10} color={house.color} />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <button 
+            onClick={async () => {
+              const res = await (window.electronAPI as any).setHypeSquadBadge(0);
+              if (res.success) {
+                handleHouseUpdate(0);
+                showToast('Badge HypeSquad supprime');
+              }
+            }}
+            className="btn-primary"
+            style={{ 
+              width: '100%', marginTop: '5px', padding: '10px', fontSize: '9px', fontWeight: '900',
+              background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)',
+              boxShadow: 'none'
+            }}
+          >
+            <Trash2 size={12} style={{ marginRight: '8px' }} /> SUPPRIMER LE BADGE
+          </button>
         </div>
       </div>
 

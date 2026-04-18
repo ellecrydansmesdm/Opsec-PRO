@@ -74,13 +74,13 @@ export const Logs = () => {
               key={t}
               onClick={() => setTypeFilter(t)}
               style={{
-                padding: '6px 15px',
-                fontSize: '10px',
+                padding: '10px 18px',
+                fontSize: '11px',
                 fontWeight: '900',
                 border: 'none',
-                background: typeFilter === t ? 'rgba(255,255,255,0.05)' : 'transparent',
+                background: typeFilter === t ? 'rgba(255,255,255,0.08)' : 'transparent',
                 color: typeFilter === t ? 'var(--accent)' : 'var(--text-dim)',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 textTransform: 'uppercase',
                 transition: 'all 0.2s'
               }}

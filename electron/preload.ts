@@ -20,8 +20,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resolveIds: (ids: string[]) => ipcRenderer.invoke('resolve-ids', ids),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
-  onAutoLogin: (callback: (user: any) => void) => ipcRenderer.on('auto-login-success', (_, user) => callback(user)),
-  onAutoLoginError: (callback: (error: string) => void) => ipcRenderer.on('auto-login-error', (_, err) => callback(err)),
+  onAutoLogin: (callback: (user: any) => void) => {
+    const listener = (_: any, user: any) => callback(user);
+    ipcRenderer.on('auto-login-success', listener);
+    return () => ipcRenderer.removeListener('auto-login-success', listener);
+  },
+  onAutoLoginError: (callback: (error: string) => void) => {
+    const listener = (_: any, err: string) => callback(err);
+    ipcRenderer.on('auto-login-error', listener);
+    return () => ipcRenderer.removeListener('auto-login-error', listener);
+  },
   leaveAllGroups: (ids?: string[], silent?: boolean) => ipcRenderer.invoke('leave-all-groups', ids, silent),
   deleteAllFriends: (ids?: string[]) => ipcRenderer.invoke('delete-all-friends', ids),
   getFriendsList: () => ipcRenderer.invoke('get-friends-list'),
@@ -68,4 +76,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFarmerStatus: () => ipcRenderer.invoke('get-farmer-status'),
   closeAllDMs: () => ipcRenderer.invoke('close-all-dms'),
   clearLogs: () => ipcRenderer.invoke('clear-logs'),
+
+  // V1.2.1 Pomelo Sniper
+  checkPomelo: (username: string) => ipcRenderer.invoke('pomelo:check', username),
+  claimPomelo: (data: { username: string, password?: string }) => ipcRenderer.invoke('pomelo:claim', data),
+  startPomeloBatch: (data: { usernames: string[], delay?: number, autoClaim?: boolean, password?: string }) => ipcRenderer.invoke('pomelo:start-batch', data),
+  stopPomeloBatch: () => ipcRenderer.invoke('pomelo:stop-batch'),
+  onPomeloUpdate: (callback: (data: any) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('pomelo-update', listener);
+    return () => ipcRenderer.removeListener('pomelo-update', listener);
+  },
+  onSettingsUpdated: (callback: (settings: any) => void) => {
+    const listener = (_: any, settings: any) => callback(settings);
+    ipcRenderer.on('settings-updated', listener);
+    return () => ipcRenderer.removeListener('settings-updated', listener);
+  },
+
+  // Group Pro & Sentinel Duo
+  startGroupRename: (data: { channelId: string, names: string[], delay: number }) => ipcRenderer.invoke('group:start-rename', data),
+  stopGroupRename: () => ipcRenderer.invoke('group:stop-rename'),
+  startSentinel: (data: { partnerToken: string, groupIds: string[], groupLinks?: {[key: string]: string} }) => ipcRenderer.invoke('sentinel:start', data),
+  stopSentinel: () => ipcRenderer.invoke('sentinel:stop'),
+  sentinelStatus: () => ipcRenderer.invoke('sentinel:status'),
+  toggleSentinelShield: (groupId: string, active: boolean) => ipcRenderer.invoke('sentinel:toggle-shield', { groupId, active }),
+  cloneGroup: (groupId: string) => ipcRenderer.invoke('group:clone', { groupId }),
+  massAddRecipients: (groupId: string, userIds: string[], delay: number) => ipcRenderer.invoke('group:mass-add', { groupId, userIds, delay }),
+  logInfo: (message: string, type?: 'info' | 'success' | 'error') => ipcRenderer.invoke('log:info', { message, type }),
+  setHypeSquadBadge: (houseId: number) => ipcRenderer.invoke('hypersquad:set', { houseId }),
 });

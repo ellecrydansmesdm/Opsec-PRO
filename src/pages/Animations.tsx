@@ -58,7 +58,8 @@ export const Animations = () => {
             messagesToday: 0,
             totalMessages: 0
         },
-        totalRotations: 0
+        totalRotations: 0,
+        hypesquadHouse: 0
     }, [currentAccount]);
 
     useEffect(() => {
@@ -432,18 +433,13 @@ export const Animations = () => {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <ShieldCheck size={16} color="var(--accent)" />
-                                <span style={{ fontSize: '11px', fontWeight: '800' }}>Badge HypeSquad</span>
-                            </div>
-                            <span style={{ fontSize: '9px', color: 'var(--success)', fontWeight: '900' }}>AUTO-ROTATION ON</span>
-                        </div>
+                        {/* HypeSquad row removed from here */}
 
                         <label className="caption">Serveurs pour le Clan Tag (Primary Guild)</label>
                         <DoubleChannelSelector 
                             allowMultiple 
                             selectServerOnly={true}
+                            serverFilter={(s) => (s.premiumTier >= 2) || (s.features && s.features.includes('CLAN'))}
                             selectedIds={rotator.clanTags}
                             onSelect={(id) => {
                                 const newTags = [...rotator.clanTags, id];
@@ -535,8 +531,7 @@ export const Animations = () => {
                             );
                         })}
                     </div>
-                </div>
-
+            </div>
             </div>
 
             {/* Legend & Help Component */}

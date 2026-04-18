@@ -208,11 +208,13 @@ export class ProfileRotator {
             if (bioText && bioText.trim() !== '') {
                 const resolved = this.resolveVariables(bioText);
                 try {
-                    await (this.client as any).settings.setBio(resolved);
-                    this.logCallback(`[IDENTITY] Bio mise à jour`, 'info');
+                    await (this.client as any).api.users['@me'].profile.patch({ 
+                        data: { bio: resolved } 
+                    });
+                    this.logCallback(`[IDENTITY] Bio mise a jour`, 'info');
                     changedSomething = true;
                 } catch (e: any) {
-                    this.logCallback(`[IDENTITY ERROR] Échec Bio: ${e.message}`, 'error');
+                    this.logCallback(`[IDENTITY ERROR] Echec Bio: ${e.message}`, 'error');
                 }
             }
             cfg.currentBioIndex = (cfg.currentBioIndex + 1) % cfg.bios.length;
@@ -239,27 +241,28 @@ export class ProfileRotator {
             }
         }
 
-        // 4. Update Badge (HypeSquad Rotation)
-        if (cfg.enabledSections.clanTag) { // On réutilise cette section ou on pourrait en créer une nouvelle
-            try {
-                const houses = ['HOUSE_BRILLIANCE', 'HOUSE_BRAVERY', 'HOUSE_BALANCE'];
-                const houseId = (this.currentHouseIndex % 3) + 1; // 1, 2, 3
-                await (this.client.user as any).setHypeSquad(houseId);
-                this.logCallback(`[IDENTITY] Badge HypeSquad → ${houses[this.currentHouseIndex % 3]}`, 'info');
-                this.currentHouseIndex++;
-                changedSomething = true;
-            } catch (e) {}
-        }
+        // 4. (Removed HypeSquad Rotation - now manual)
 
-        // 5. Update Clan Tag (Primary Guild)
+        // 5. Update Clan Tag (Discord CLANS)
         if (cfg.enabledSections.clanTag && cfg.clanTags && cfg.clanTags.length > 0) {
             const guildId = cfg.clanTags[cfg.currentClanTagIndex % cfg.clanTags.length];
             try {
-                await (this.client as any).settings.setPrimaryGuild(guildId);
-                this.logCallback(`[IDENTITY] Clan Tag → Changé (Guild: ${guildId})`, 'info');
+                // Method: Priority on Dedicated Clan Endpoint (New Clans feature)
+                await (this.client as any).api.guilds(guildId).clan.member.primary.post();
+                
+                this.logCallback(`[IDENTITY] Clan Tag -> Change vers ${guildId}`, 'success');
                 changedSomething = true;
             } catch (e: any) {
-                this.logCallback(`[IDENTITY ERROR] Échec Clan Tag (Primary Guild): ${e.message}`, 'error');
+                // Fallback to Method A: User Settings (Old Primary Guild Tag)
+                try {
+                    await (this.client as any).api.users['@me'].settings.patch({ 
+                        data: { primary_guild_id: guildId } 
+                    });
+                    this.logCallback(`[IDENTITY] Clan Tag (Legacy) -> Change vers ${guildId}`, 'success');
+                    changedSomething = true;
+                } catch (err: any) {
+                    this.logCallback(`[IDENTITY ERROR] Echec Clan Tag : ${err.message}`, 'error');
+                }
             }
             cfg.currentClanTagIndex = (cfg.currentClanTagIndex + 1) % cfg.clanTags.length;
         }

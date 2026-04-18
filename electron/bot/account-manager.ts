@@ -18,15 +18,17 @@ export class AccountManager {
             const data = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
             let loadedAccounts: Account[] = data.accounts || [];
             
-            // Deduplicate only if BOTH ID and Token match (Total duplicate)
-            // If tokens are different, keep them separate even if IDs are placeholders
+            // Deduplicate by Discord User ID only.
+            // If the same account was added multiple times with different tokens,
+            // keep only the LAST one (most recent token = most likely valid).
             const uniqueAccounts: Account[] = [];
-            const seenKeys = new Set();
-            for (const acc of loadedAccounts) {
-                const key = `${acc.id}-${acc.token}`;
-                if (!seenKeys.has(key)) {
-                    uniqueAccounts.push(acc);
-                    seenKeys.add(key);
+            const seenIds = new Set<string>();
+            // Iterate in reverse to keep the last (most recent) entry
+            for (let i = loadedAccounts.length - 1; i >= 0; i--) {
+                const acc = loadedAccounts[i];
+                if (!seenIds.has(acc.id)) {
+                    uniqueAccounts.unshift(acc); // Prepend to maintain order
+                    seenIds.add(acc.id);
                 }
             }
             this.accounts = uniqueAccounts;
@@ -61,6 +63,7 @@ export class AccountManager {
                             activity: true,
                             clanTag: false
                         },
+                        hypesquadHouse: 0,
                         stats: {
                             messagesToday: 0,
                             totalMessages: 0
@@ -88,8 +91,8 @@ export class AccountManager {
     }
 
     public addAccount(account: Account) {
-        // Prevent duplicates by Token (Unique session)
-        this.accounts = this.accounts.filter(a => a.token !== account.token);
+        // Replace existing account with the same Discord User ID (prevents expired token stacking)
+        this.accounts = this.accounts.filter(a => a.id !== account.id);
         this.accounts.push(account);
         this.save();
     }

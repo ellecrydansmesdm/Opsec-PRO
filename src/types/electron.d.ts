@@ -19,8 +19,8 @@ declare global {
       resolveIds: (ids: string[]) => Promise<IPCResponse<Record<string, { name: string; icon?: string; type: string }>>>;
       getSettings: () => Promise<IPCResponse<AppSettings>>;
       saveSettings: (settings: any) => Promise<IPCResponse<void>>;
-      onAutoLogin: (callback: (user: UserProfile) => void) => void;
-      onAutoLoginError: (callback: (error: string) => void) => void;
+      onAutoLogin: (callback: (user: UserProfile) => void) => () => void;
+      onAutoLoginError: (callback: (error: string) => void) => () => void;
       leaveAllGroups: (ids?: string[], silent?: boolean) => Promise<IPCResponse<{ count: number }>>;
       deleteAllFriends: (ids?: string[]) => Promise<IPCResponse<{ count: number }>>;
       getFriendsList: () => Promise<IPCResponse<any[]>>;
@@ -46,6 +46,24 @@ declare global {
       getFarmerStatus: () => Promise<IPCResponse<{ voice: any; xp: any; autoResponder: any }>>;
       clearLogs: () => Promise<IPCResponse<void>>;
       forceRotatorUpdate: () => Promise<IPCResponse<void>>;
+
+      // V1.2.1 Pomelo Sniper
+      checkPomelo: (username: string) => Promise<IPCResponse<{ available: boolean; status: 'available' | 'taken' | 'ghost' | 'owned'; firstSeen?: number; reason?: string }>>;
+      claimPomelo: (data: { username: string; password?: string }) => Promise<IPCResponse<{ username: string }>>;
+      startPomeloBatch: (data: { usernames: string[]; delay?: number; autoClaim?: boolean; password?: string }) => Promise<IPCResponse<{ found: number; claimed?: string }>>;
+      stopPomeloBatch: () => Promise<IPCResponse<void>>;
+      onPomeloUpdate: (callback: (data: { username: string; status: 'taken' | 'available' }) => void) => () => void;
+      
+      onSettingsUpdated: (callback: (settings: AppSettings) => void) => () => void;
+      
+      // Additional PRO Features
+      getCommandsCount: (userId: string) => Promise<IPCResponse<{ count: number }>>;
+      incrementCommand: (userId: string) => Promise<IPCResponse<void>>;
+      jumpToMessage: (messageId: string) => Promise<IPCResponse<void>>;
+      onRotatorPulse: (callback: (data: any) => void) => () => void;
+      wallpaperUpload: (filePath?: string) => Promise<IPCResponse<{ success: boolean; path: string }>>;
+      wallpaperReset: () => Promise<IPCResponse<void>>;
+      getDevAvatar: () => Promise<IPCResponse<string>>;
     };
   }
 }

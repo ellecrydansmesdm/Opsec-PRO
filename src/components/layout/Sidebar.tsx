@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2, Tractor, Bot } from 'lucide-react';
+import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2, Tractor, Bot, Users } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { AccountSwitcher } from '../ui/AccountSwitcher';
 
@@ -39,6 +39,15 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => 
             onClick={() => setActiveTab('Modules')}
           >
             <Zap size={24} strokeWidth={2} />
+          </button>
+        </Tooltip>
+
+        <Tooltip text="Group Pro">
+          <button 
+            className={`nav-button ${activeTab === 'GroupPro' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('GroupPro')}
+          >
+            <Users size={24} strokeWidth={2} />
           </button>
         </Tooltip>
 

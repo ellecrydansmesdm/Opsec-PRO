@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AppSettings } from '../shared/types';
 import { useUserStore } from '@/store/useUserStore';
 import { useLogsStore } from '@/store/useLogsStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -11,6 +12,7 @@ import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoadingScreen } from '@/components/auth/LoadingScreen';
 import { FullScreenBackground } from '@/components/ui/FullScreenBackground';
 import { LogsDock } from '@/components/layout/LogsDock';
+import { AccountSwitcher } from '@/components/ui/AccountSwitcher';
 
 // Pages
 import { Overview } from '@/pages/Overview';
@@ -20,7 +22,31 @@ import { AutoResponder } from '@/pages/AutoResponder';
 import { Logs } from '@/pages/Logs';
 import { Settings } from '@/pages/Settings';
 import { Animations } from '@/pages/Animations';
+import { GroupSystem } from '@/components/modules/GroupSystem';
 import { audioService } from '@/services/AudioService';
+import { motion } from 'framer-motion';
+
+const KeepAlivePage = ({ active, children }: { active: boolean; children: React.ReactNode }) => (
+  <motion.div
+    initial={false}
+    animate={{ 
+        opacity: active ? 1 : 0, 
+        y: active ? 0 : -10,
+        pointerEvents: active ? 'auto' : 'none'
+    }}
+    transition={{ duration: 0.3, ease: 'easeOut' }}
+    style={{ 
+        height: '100%', 
+        width: '100%',
+        display: active ? 'block' : 'none',
+        position: 'absolute',
+        top: 0,
+        left: 0
+    }}
+  >
+    {children}
+  </motion.div>
+);
 
 function App() {
   const { user, isAuthenticated, setUser, setAuthenticated, logout } = useUserStore();
@@ -31,7 +57,9 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmData, setConfirmData] = useState<any>({ isOpen: false });
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isReady, setIsReady] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
+  const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'danger') => {
     setToast({ message, type });
@@ -54,30 +82,69 @@ function App() {
       body.classList.remove('has-wallpaper');
       root.style.setProperty('--has-wallpaper', '0');
     }
+    
+    // 3. Cyber Cursor Toggle
+    if (settings.cyberCursorEnabled) {
+      body.classList.add('cyber-cursor-active');
+      if (settings.customCursorUrl) {
+        root.style.setProperty('--custom-cursor', `url("${settings.customCursorUrl}"), auto`);
+      } else {
+        root.style.setProperty('--custom-cursor', 'pointer');
+      }
+    } else {
+      body.classList.remove('cyber-cursor-active');
+    }
 
-    // 3. Global Security : Block Copy & Context Menu
+    // 4. Boot Sound
+    if (isReady && !isInitializing) {
+      const timer = setTimeout(() => {
+        audioService.play('boot', { volume: 0.4 });
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [settings.themeOpacity, settings.themeBackground, isReady, isInitializing]);
+
+  useEffect(() => {
+    // 4. Global Security : Block Copy & Context Menu
     const disableCopy = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      
+      // Allow copy in inputs, textareas, or elements with specific classes
+      const isInput = target.tagName === 'INPUT' || 
+                      target.tagName === 'TEXTAREA' || 
+                      target.isContentEditable;
+                      
+      const allowCopyClass = target.closest('.allow-copy') || target.closest('.console-output');
+      
+      if (isInput || allowCopyClass) return;
       
       e.preventDefault();
-      showToast('🔒 Copie désactivée pour la sécurité', 'danger');
-      audioService.play('error');
+      showToast('🔒 PROTECTION OPSEC : Copie non autorisée', 'danger');
+      audioService.play('denied', { volume: 0.3 });
     };
 
     const disableContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      const isInput = target.tagName === 'INPUT' || 
+                      target.tagName === 'TEXTAREA' || 
+                      target.isContentEditable;
       
-      e.preventDefault();
+      if (!isInput) {
+        e.preventDefault();
+        audioService.play('denied', { volume: 0.2 });
+      }
     };
 
     document.addEventListener('copy', disableCopy);
     document.addEventListener('contextmenu', disableContextMenu);
 
+    const handleSwitchTab = (e: any) => setActiveTab(e.detail);
+    window.addEventListener('switch-tab', handleSwitchTab);
+
     return () => {
       document.removeEventListener('copy', disableCopy);
       document.removeEventListener('contextmenu', disableContextMenu);
+      window.removeEventListener('switch-tab', handleSwitchTab);
     };
   }, [settings.themeOpacity, settings.themeBackground]);
 
@@ -137,15 +204,32 @@ function App() {
         setAuthenticated(false);
       } finally {
         setIsInitializing(false);
+        // Small delay to ensure loading screen fade-out is smoother
+        setTimeout(() => setIsReady(true), 500);
       }
     };
 
     initApp();
 
-    window.electronAPI.onLog((newLog) => addLog(newLog));
+    const unsubscribeLog = window.electronAPI.onLog((newLog) => addLog(newLog));
+    
+    const unsubscribeAutoLogin = window.electronAPI.onAutoLogin((userData) => {
+      console.log("[OPSEC] Global Auto-login success listener triggered");
+      setUser(userData);
+      setAuthenticated(true);
+      setIsAccountSelectorOpen(false);
+    });
+
+    const unsubscribeSettings = window.electronAPI.onSettingsUpdated((newSettings: AppSettings) => {
+      console.log("[OPSEC] Settings updated from backend", newSettings);
+      setSettings(newSettings);
+    });
     
     const handleOpenAdd = () => setShowAddModal(true);
     window.addEventListener('open-add-account' as any, handleOpenAdd);
+
+    const handleOpenSelector = () => setIsAccountSelectorOpen(true);
+    window.addEventListener('open-account-selector' as any, handleOpenSelector);
 
     const handleSwitchToLogs = () => setActiveTab('Logs');
     window.addEventListener('switch-to-logs' as any, handleSwitchToLogs);
@@ -153,7 +237,11 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleEsc);
       window.removeEventListener('open-add-account' as any, handleOpenAdd);
+      window.removeEventListener('open-account-selector' as any, handleOpenSelector);
       window.removeEventListener('switch-to-logs' as any, handleSwitchToLogs);
+      unsubscribeLog();
+      unsubscribeAutoLogin();
+      unsubscribeSettings();
     };
   }, []);
 
@@ -170,7 +258,7 @@ function App() {
       display: 'flex', 
       flexDirection: 'column', 
       background: settings.themeBackground ? 'transparent' : 'var(--bg-main)', 
-      overflow: 'hidden' 
+      overflow: 'hidden'
     }}>
       <FullScreenBackground />
       <TitleBar />
@@ -181,27 +269,43 @@ function App() {
         <div className="app-container" style={{ flex: 1, display: 'flex', overflow: 'hidden', paddingTop: 0 }}>
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
           
-          <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
-            {activeTab === 'Overview' && user && (
-              <Overview 
-                onSwitch={() => setShowAddModal(true)} 
-                onAdd={() => setShowAddModal(true)} 
-              />
-            )}
+          <main className="main-content" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+            <KeepAlivePage active={activeTab === 'Overview'}>
+              {user && (
+                <Overview 
+                  onSwitch={() => setIsAccountSelectorOpen(true)} 
+                  onAdd={() => setShowAddModal(true)} 
+                />
+              )}
+            </KeepAlivePage>
             
-            {activeTab === 'Modules' && (
+            <KeepAlivePage active={activeTab === 'Modules'}>
               <Modules onConfirm={(data) => setConfirmData(data)} />
-            )}
+            </KeepAlivePage>
+
+            <KeepAlivePage active={activeTab === 'GroupPro'}>
+              {user && <GroupSystem showToast={showToast} />}
+            </KeepAlivePage>
             
-            {activeTab === 'Farmer' && <Farmer />}
+            <KeepAlivePage active={activeTab === 'Farmer'}>
+              <Farmer />
+            </KeepAlivePage>
             
-            {activeTab === 'Responder' && <AutoResponder />}
+            <KeepAlivePage active={activeTab === 'Responder'}>
+              <AutoResponder />
+            </KeepAlivePage>
             
-            {activeTab === 'Logs' && <Logs />}
+            <KeepAlivePage active={activeTab === 'Logs'}>
+              <Logs />
+            </KeepAlivePage>
             
-            {activeTab === 'Animations' && <Animations />}
+            <KeepAlivePage active={activeTab === 'Animations'}>
+              <Animations />
+            </KeepAlivePage>
             
-            {activeTab === 'Settings' && <Settings />}
+            <KeepAlivePage active={activeTab === 'Settings'}>
+              <Settings />
+            </KeepAlivePage>
           </main>
           <LogsDock />
         </div>
@@ -220,6 +324,22 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content glass-card animate-slide-up" onClick={e => e.stopPropagation()} style={{ padding: '40px', position: 'relative' }}>
             <LoginScreen isModal onLogin={(u) => { setUser(u); setShowAddModal(false); }} onClose={() => setShowAddModal(false)} />
+          </div>
+        </div>
+      )}
+
+      {isAccountSelectorOpen && (
+        <div className="modal-overlay" onClick={() => setIsAccountSelectorOpen(false)}>
+          <div 
+            className="modal-content glass-card animate-slide-up" 
+            onClick={e => e.stopPropagation()} 
+            style={{ padding: '0', width: '350px', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'none' }}>{/* Placeholder for future modal header if needed */}</div>
+            <div style={{ padding: '5px' }}>
+                {/* The component itself handles internal styling, we just pass the modal prop */}
+                <AccountSwitcher isModal onClose={() => setIsAccountSelectorOpen(false)} />
+            </div>
           </div>
         </div>
       )}
