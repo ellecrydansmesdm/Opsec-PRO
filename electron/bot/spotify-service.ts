@@ -218,7 +218,7 @@ export class SpotifyService {
     }
 
     private async syncLyrics() {
-        if (!this.client.user || !this.isRunning) return;
+        if (!this.client.user || !this.client.token || !this.isRunning) return;
 
         // --- SOURCE MERGING ---
         // We try Discord Activity first, but if empty, we fall back to Local Tracking
@@ -237,12 +237,12 @@ export class SpotifyService {
             };
         }
 
-        // DIAGNOSTIC LOG (Toutes les 10 minutes)
-        if (!this._debugTick) this._debugTick = 0;
+        // DIAGNOSTIC LOG (Toutes les 10 minutes / 1200 ticks @ 500ms)
         this._debugTick++;
         if (this._debugTick % 1200 === 0) {
             const source = spotifyActivity?.isLocal ? 'WINDOWS_LOCAL' : 'DISCORD_GATEWAY';
-            this.log(`DIAGNOSTIC: Analyse du compte [${this.client.user.tag}]. Spotify = ${spotifyActivity ? 'OUI (' + source + ')' : 'NON'}`, 'info');
+            // Silent diagnostic in developer console
+            console.log(`[Spotify] DIAGNOSTIC: Source: ${source} | Presence: ${spotifyActivity ? 'ACTIVE' : 'NONE'}`);
         }
 
         if (!spotifyActivity || !spotifyActivity.timestamps?.start) {

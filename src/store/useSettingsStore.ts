@@ -47,7 +47,24 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     audioVolume: 0.5,
     audioEnabled: true,
     cyberCursorEnabled: false,
-    sentinelEnabled: false
+    sentinelEnabled: false,
+    automationConfig: {
+      autoReport: {
+        enabled: false,
+        targetUserId: '',
+        floodLimit: 5,
+        insultKeywords: ['fdp', 'connard', 'salope', 'useless'],
+        reportCategory: [3, 28, 72]
+      },
+      nitroSniper: {
+        enabled: false,
+        priorityMain: true
+      },
+      giveawayJoiner: {
+        enabled: false,
+        delay: 5000
+      }
+    }
   },
   setSettings: (settings) => set({ settings }),
   updateSetting: (key, value) => {

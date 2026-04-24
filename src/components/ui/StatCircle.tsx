@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 
 interface StatCircleProps {
   count: number;
@@ -9,7 +9,7 @@ interface StatCircleProps {
   fontSize?: string;
 }
 
-export const StatCircle = ({ 
+export const StatCircle = memo(({ 
   count, 
   max, 
   label, 
@@ -63,4 +63,4 @@ export const StatCircle = ({
       <p className="caption" style={{ color: 'var(--text-dim)', fontSize: '10px' }}>{label}</p>
     </div>
   );
-};
+});

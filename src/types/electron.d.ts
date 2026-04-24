@@ -31,6 +31,7 @@ declare global {
       removeAccount: (id: string | number) => Promise<IPCResponse<void>>;
       leaveAllServers: (ids?: string[]) => Promise<IPCResponse<{ count: number }>>;
       selectFile: () => Promise<IPCResponse<string>>;
+      selectTokenFile: () => Promise<IPCResponse<string>>;
       toggleAnimation: (anim: any) => Promise<IPCResponse<void>>;
       dmAllFriends: (data: { message: string }) => Promise<IPCResponse<{ count: number }>>;
       stopDMAll: () => Promise<IPCResponse<void>>;
@@ -64,6 +65,20 @@ declare global {
       wallpaperUpload: (filePath?: string) => Promise<IPCResponse<{ success: boolean; path: string }>>;
       wallpaperReset: () => Promise<IPCResponse<void>>;
       getDevAvatar: () => Promise<IPCResponse<string>>;
+
+      // Group Pro & Sentinel Duo
+      startGroupRename: (data: { channelId: string, names: string[], delay: number }) => Promise<IPCResponse<void>>;
+      stopGroupRename: () => Promise<IPCResponse<void>>;
+      startSentinel: (data: { partnerToken: string, groupIds: string[], groupLinks?: {[key: string]: string} }) => Promise<IPCResponse<void>>;
+      stopSentinel: () => Promise<IPCResponse<void>>;
+      sentinelStatus: () => Promise<IPCResponse<any>>;
+      toggleSentinelShield: (groupId: string, active: boolean) => Promise<IPCResponse<void>>;
+      cloneGroup: (groupId: string) => Promise<IPCResponse<void>>;
+      massAddRecipients: (groupId: string, userIds: string[], delay: number) => Promise<IPCResponse<void>>;
+      logInfo: (message: string, type?: 'info' | 'success' | 'error') => Promise<IPCResponse<void>>;
+      setHypeSquadBadge: (houseId: number) => Promise<IPCResponse<void>>;
+      startAutoVote: (data: { messageId: string, channelId: string, emoji: string, accounts: any[] }) => Promise<IPCResponse<void>>;
+      checkCapMonsterKey: (key: string) => Promise<IPCResponse<{ balance: number }>>;
     };
   }
 }

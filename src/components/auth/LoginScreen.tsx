@@ -10,19 +10,89 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => {
+  const [mode, setMode] = useState<'single' | 'bulk'>('single');
   const [token, setToken] = useState('');
+  const [bulkTokens, setBulkTokens] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processingResults, setProcessingResults] = useState<{tag?: string, status: string, color: string}[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token.trim()) return setError('Auth Token Required.');
-    setLoading(true); setError(null);
-    const response = await window.electronAPI.loginAttempt({ token, rememberMe }) as any;
+    if (mode === 'single') {
+        if (!token.trim()) return setError('Auth Token Required.');
+        setLoading(true); setError(null);
+        const response = await window.electronAPI.loginAttempt({ token, rememberMe }) as any;
+        setLoading(false);
+        if (response.success && response.user) onLogin(response.user);
+        else setError(response.error || response.message || 'Invalid Matrix Token.');
+    } else {
+        handleBulkSubmit();
+    }
+  };
+
+  const handleBulkSubmit = async () => {
+    const tokens = bulkTokens.split('\n')
+        .map(t => t.trim().replace(/"/g, ''))
+        .filter(t => t.length > 10);
+
+    if (!tokens.length) return setError('No valid tokens detected in buffer.');
+    
+    setLoading(true);
+    setError(null);
+    setProcessingResults([]);
+    
+    for (let i = 0; i < tokens.length; i++) {
+      const currentToken = tokens[i];
+      setProcessingResults(prev => [...prev, { status: `ACCOUNT ${i+1}/${tokens.length} : VALIDATING...`, color: 'var(--accent)' }]);
+      
+      try {
+        const res = await window.electronAPI.loginAttempt({ token: currentToken, rememberMe }) as any;
+        
+        setProcessingResults(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (res.success && res.user) {
+              last.tag = res.user.tag;
+              last.status = `SUCCESS : ${res.user.tag}`;
+              last.color = '#10b981';
+            } else {
+              last.status = `ERROR : ${res.error || 'Invalid Token'}`;
+              last.color = '#ff4444';
+            }
+            return next;
+        });
+      } catch (err) {
+          setProcessingResults(prev => {
+            const next = [...prev];
+            next[next.length - 1].status = 'CRITICAL API ERROR';
+            next[next.length - 1].color = '#ff4444';
+            return next;
+          });
+      }
+
+      // Respect API Limits
+      if (i < tokens.length - 1) {
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+    
     setLoading(false);
-    if (response.success && response.user) onLogin(response.user);
-    else setError(response.error || response.message || 'Invalid Matrix Token.');
+    // If modal, we might want to close after a few seconds or stay if there were errors
+    if (processingResults.every(r => r.status.includes('SUCCESS'))) {
+        setTimeout(() => onClose?.(), 2000);
+    }
+  };
+
+  const handleFileImport = async () => {
+    const res = await window.electronAPI.selectTokenFile() as any;
+    if (res.success && res.data) {
+        setBulkTokens(res.data);
+        setError(null);
+    } else if (res.error && res.error !== 'Annulé') {
+        setError(res.error);
+    }
   };
 
   const handleDiscordBrowserLogin = async () => {
@@ -79,8 +149,8 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
            </button>
         )}
         
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{ display: 'inline-flex', padding: '15px', borderRadius: '50%', background: 'rgba(0, 212, 255, 0.05)', border: '1px solid rgba(0, 212, 255, 0.1)', marginBottom: '20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <div style={{ display: 'inline-flex', padding: '15px', borderRadius: '50%', background: 'rgba(0, 212, 255, 0.05)', border: '1px solid rgba(0, 212, 255, 0.1)', marginBottom: '15px' }}>
             <img 
               src={logo} 
               alt="Opsec" 
@@ -89,39 +159,121 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
           </div>
           <h1 style={{ 
             fontFamily: "'Orbitron', sans-serif", 
-            fontSize: '24px', 
+            fontSize: '20px', 
             letterSpacing: '5px', 
             fontWeight: '900',
             textShadow: '0 0 20px var(--accent-glow)'
           }}>
-            OPSEC <span style={{ color: 'var(--accent)' }}>LOGIN</span>
+            OPSEC <span style={{ color: 'var(--accent)' }}>{mode === 'single' ? 'LOGIN' : 'MASS ADD'}</span>
           </h1>
           <div style={{ height: '2px', width: '40px', background: 'var(--accent)', margin: '15px auto' }}></div>
-          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            {isModal ? "Authentication Node Required" : "Authorized Personnel Only"}
-          </p>
+        </div>
+
+        {/* Tab System */}
+        <div style={{ display: 'flex', gap: '2px', marginBottom: '25px', background: 'rgba(255,255,255,0.02)', padding: '2px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <button 
+            onClick={() => setMode('single')} 
+            style={{ 
+              flex: 1, padding: '10px', 
+              background: mode === 'single' ? 'var(--accent)' : 'transparent', 
+              color: mode === 'single' ? 'black' : 'white', 
+              border: 'none', fontSize: '9px', fontWeight: '900', letterSpacing: '2px', cursor: 'pointer', transition: 'all 0.3s' 
+            }}
+          >
+            INDIVIDUAL
+          </button>
+          <button 
+            onClick={() => setMode('bulk')} 
+            style={{ 
+              flex: 1, padding: '10px', 
+              background: mode === 'bulk' ? 'var(--accent)' : 'transparent', 
+              color: mode === 'bulk' ? 'black' : 'white', 
+              border: 'none', fontSize: '9px', fontWeight: '900', letterSpacing: '2px', cursor: 'pointer', transition: 'all 0.3s' 
+            }}
+          >
+            MASS (TXT)
+          </button>
         </div>
         
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div style={{ position: 'relative' }}>
-            <input 
-              type="password" 
-              value={token} 
-              onChange={(e) => setToken(e.target.value)} 
-              placeholder="MATRIX TOKEN" 
-              style={{ 
-                width: '100%', 
-                padding: '16px 20px', 
-                background: 'rgba(0, 0, 0, 0.4)', 
-                border: '1px solid rgba(255, 255, 255, 0.05)', 
-                color: 'white', 
-                fontSize: '13px', 
-                letterSpacing: '1px',
-                outline: 'none',
-                fontFamily: 'monospace'
-              }} 
-            />
-          </div>
+          {mode === 'single' ? (
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="password" 
+                  value={token} 
+                  onChange={(e) => setToken(e.target.value)} 
+                  placeholder="MATRIX TOKEN" 
+                  style={{ 
+                    width: '100%', 
+                    padding: '16px 20px', 
+                    background: 'rgba(0, 0, 0, 0.4)', 
+                    border: '1px solid rgba(255, 255, 255, 0.05)', 
+                    color: 'white', 
+                    fontSize: '13px', 
+                    letterSpacing: '1px',
+                    outline: 'none',
+                    fontFamily: 'monospace'
+                  }} 
+                />
+              </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+               <textarea 
+                  value={bulkTokens}
+                  onChange={(e) => setBulkTokens(e.target.value)}
+                  placeholder="PASTE TOKENS HERE (ONE PER LINE)"
+                  rows={6}
+                  style={{ 
+                    width: '100%', 
+                    padding: '16px 20px', 
+                    background: 'rgba(0,0,0,0.4)', 
+                    border: '1px solid rgba(255,255,255,0.05)', 
+                    color: 'var(--accent)', 
+                    fontSize: '11px', 
+                    outline: 'none',
+                    fontFamily: 'monospace',
+                    resize: 'none',
+                    scrollbarWidth: 'thin'
+                  }}
+               />
+               <button 
+                  type="button"
+                  onClick={handleFileImport}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.03)', 
+                    border: '1px dashed rgba(255,255,255,0.1)', 
+                    padding: '10px', 
+                    color: 'rgba(255,255,255,0.4)', 
+                    fontSize: '9px', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                  }}
+               >
+                 <RefreshCw size={12} /> BROWSE .TXT FILE
+               </button>
+
+               {/* Progress List */}
+               {processingResults.length > 0 && (
+                 <div style={{ 
+                   maxHeight: '120px', 
+                   overflowY: 'auto', 
+                   background: 'rgba(0,0,0,0.2)', 
+                   padding: '10px',
+                   border: '1px solid rgba(255,255,255,0.05)',
+                   display: 'flex',
+                   flexDirection: 'column',
+                   gap: '5px'
+                 }} className="custom-scrollbar">
+                    {processingResults.map((res, i) => (
+                      <div key={i} style={{ fontSize: '9px', color: res.color, fontFamily: 'monospace', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{res.status}</span>
+                      </div>
+                    ))}
+                 </div>
+               )}
+            </div>
+          )}
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div 
@@ -137,7 +289,7 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
             >
               {rememberMe && <ChevronRight size={12} color="black" />}
             </div>
-            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
+            <label style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
               Persist session (Auto-Login)
             </label>
           </div>
@@ -152,47 +304,50 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px',
               borderRadius: '2px', // Sharp
               fontFamily: "'Orbitron', sans-serif",
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: '900',
               letterSpacing: '2px',
-              cursor: 'pointer',
-              pointerEvents: 'auto' // Force interactions even when disabled if needed
+              cursor: 'pointer'
             }}
           >
             {loading ? <RefreshCw size={18} className="animate-spin" /> : <Shield size={18} />}
-            {loading ? 'CONNECTING...' : 'INITIATE AUTH'}
+            {loading ? 'PROCESSING...' : mode === 'single' ? 'INITIATE AUTH' : 'START BULK IMPORT'}
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', margin: '30px 0', gap: '15px' }}>
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
-          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', fontWeight: '900' }}>OR</span>
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
-        </div>
+        {mode === 'single' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '30px 0', gap: '15px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', fontWeight: '900' }}>OR</span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+            </div>
 
-        <button 
-          onClick={handleDiscordBrowserLogin} 
-          disabled={loading} 
-          style={{ 
-            width: '100%', 
-            padding: '14px', 
-            background: 'transparent', 
-            border: '1px solid rgba(88, 101, 242, 0.2)', 
-            color: 'white', 
-            cursor: 'pointer', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            fontSize: '11px',
-            fontWeight: '900',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            transition: 'all 0.3s'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(88, 101, 242, 0.05)'; e.currentTarget.style.borderColor = '#5865F2'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(88, 101, 242, 0.2)'; }}
-        >
-           <Globe size={16} color="#5865F2" />
-           Discord Handshake
-        </button>
+            <button 
+              onClick={handleDiscordBrowserLogin} 
+              disabled={loading} 
+              style={{ 
+                width: '100%', 
+                padding: '14px', 
+                background: 'transparent', 
+                border: '1px solid rgba(88, 101, 242, 0.2)', 
+                color: 'white', 
+                cursor: 'pointer', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                fontSize: '11px',
+                fontWeight: '900',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                transition: 'all 0.3s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(88, 101, 242, 0.05)'; e.currentTarget.style.borderColor = '#5865F2'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(88, 101, 242, 0.2)'; }}
+            >
+               <Globe size={16} color="#5865F2" />
+               Discord Handshake
+            </button>
+          </>
+        )}
         
         {error && (
           <div style={{ marginTop: '20px', color: '#ff4444', fontSize: '11px', fontFamily: 'monospace', textAlign: 'center', background: 'rgba(255, 68, 68, 0.05)', padding: '10px', border: '1px solid rgba(255, 68, 68, 0.1)' }}>

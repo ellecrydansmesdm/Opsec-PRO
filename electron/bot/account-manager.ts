@@ -32,6 +32,22 @@ export class AccountManager {
                 }
             }
             this.accounts = uniqueAccounts;
+
+            // Integrity check: Ensure only one account is selected
+            let modified = false;
+            const selectedCount = this.accounts.filter(a => a.selected).length;
+            if (selectedCount > 1) {
+                const firstSelected = this.accounts.find(a => a.selected);
+                this.accounts.forEach(a => a.selected = (a === firstSelected));
+                modified = true;
+            } else if (selectedCount === 0 && this.accounts.length > 0) {
+                this.accounts[0].selected = true;
+                modified = true;
+            }
+
+            if (modified) {
+                this.save();
+            }
             
             // Migration if old format exists
             if (data.token && this.accounts.length === 0) {
@@ -120,15 +136,18 @@ export class AccountManager {
 
     private save() {
         try {
-            // Read latest file content to preserve other settings (like theme/autoLogin)
             const currentRaw = fs.existsSync(this.configPath) 
                 ? fs.readFileSync(this.configPath, 'utf-8')
                 : '{}';
             const currentData = JSON.parse(currentRaw);
             
+            // Get currently selected ID for global field
+            const selected = this.getSelectedAccount();
+            
             const newData = {
                 ...currentData,
-                accounts: this.accounts
+                accounts: this.accounts,
+                lastActiveAccountId: selected?.id || currentData.lastActiveAccountId
             };
             
             fs.writeFileSync(this.configPath, JSON.stringify(newData, null, 2));

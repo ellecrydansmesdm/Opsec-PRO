@@ -104,4 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   massAddRecipients: (groupId: string, userIds: string[], delay: number) => ipcRenderer.invoke('group:mass-add', { groupId, userIds, delay }),
   logInfo: (message: string, type?: 'info' | 'success' | 'error') => ipcRenderer.invoke('log:info', { message, type }),
   setHypeSquadBadge: (houseId: number) => ipcRenderer.invoke('hypersquad:set', { houseId }),
+  startAutoVote: (data: { messageId: string, channelId: string, emoji: string, accounts: any[] }) => ipcRenderer.invoke('start-auto-vote', data),
+  selectTokenFile: () => ipcRenderer.invoke('select-token-file'),
+  checkCapMonsterKey: (key: string) => ipcRenderer.invoke('capmonster:check-key', key),
 });

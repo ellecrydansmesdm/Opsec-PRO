@@ -7,8 +7,10 @@ export class ProtectionService {
     private protectedGroups: Set<string> = new Set();
     private heartbeatInterval: NodeJS.Timeout | null = null;
     private isSentinelActive: boolean = false;
-    private shieldedGroups: Map<string, { name: string, icon: string | null }> = new Map();
+    private shieldedGroups: Map<string, { name: string, iconHash: string | null, iconBuffer: Buffer | null }> = new Map();
     private logCallback: (msg: string, type: 'info' | 'success' | 'error') => void;
+    private processingInvites: Set<string> = new Set();
+    private solver?: (captcha: any, UA: string) => Promise<string>;
 
     constructor(mainClient: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void) {
         this.mainClient = mainClient;
@@ -17,123 +19,142 @@ export class ProtectionService {
     }
 
     public setMainClient(client: Client) {
+        this.removeMainListeners();
         this.mainClient = client;
         this.setupMainListeners();
         this.logCallback(`[Sentinel] Synchronisation du compte Principal effectuee.`, 'success');
     }
 
-    private setupMainListeners() {
-        // 1. Gateway Level Monitor (Backup)
-        this.mainClient.on('raw', (packet) => {
-            if (!this.isSentinelActive || !this.partnerClient || !this.partnerClient.user) return;
-            if (packet.t === 'CHANNEL_RECIPIENT_REMOVE') {
-                const { channel_id, user } = packet.d;
-                const partnerId = (this.partnerClient as any).user.id.toString();
-                
-                if (user.id.toString() === partnerId && this.protectedGroups.has(channel_id)) {
-                    this.logCallback(`[Sentinel] Gateway : Detection de kick (Partenaire) !`, 'success');
-                    this.reinvite(this.mainClient, channel_id, user.id);
+    public setSolver(solver: (captcha: any, UA: string) => Promise<string>) {
+        this.solver = solver;
+    }
+
+    private removeMainListeners() {
+        if (!this.mainClient) return;
+        this.mainClient.off('raw', (p) => this.onMainRaw(p));
+        this.mainClient.off('messageCreate', (m) => this.onMainMessage(m));
+        this.mainClient.off('channelUpdate', (o, n) => this.onMainUpdate(o, n));
+    }
+
+    private onMainRaw(packet: any) {
+        if (!this.isSentinelActive || !this.partnerClient || !this.partnerClient.user) return;
+        if (packet.t === 'CHANNEL_RECIPIENT_REMOVE') {
+            const { channel_id, user } = packet.d;
+            const partnerId = (this.partnerClient as any).user.id.toString();
+            
+            if (user.id.toString() === partnerId && this.protectedGroups.has(channel_id)) {
+                this.logCallback(`[Sentinel] Gateway : Detection de kick (Partenaire) !`, 'success');
+                this.reinvite(this.mainClient, channel_id, user.id);
+            }
+        }
+    }
+
+    private async onMainMessage(message: any) {
+        if (!this.isSentinelActive || !this.partnerClient || !this.partnerClient.user) return;
+        
+        if (message.type === 'RECIPIENT_REMOVE' || message.type === 4 || message.type === 'RECIPIENT_ADD' || message.type === 3) {
+            // Keep console log for advanced debugging if needed
+            // console.log(`[Sentinel Diagnostic] Message Systeme Type ${message.type} dans le groupe ${message.channel?.id}`);
+        }
+
+        if (message.type === 'RECIPIENT_REMOVE' || message.type === 4) {
+            const partnerId = (this.partnerClient as any).user.id.toString();
+            const chanId = message.channel?.id;
+            if (!chanId) return;
+
+            if (this.protectedGroups.has(chanId)) {
+                this.logCallback(`[Sentinel] Retrait detecte dans un groupe protege...`, 'info');
+                const channel = await this.mainClient.channels.fetch(chanId).catch(() => null) as any;
+                const isStillThere = channel && channel.recipients && channel.recipients.has(partnerId);
+
+                if (!isStillThere) {
+                    this.logCallback(`[Sentinel] Le partenaire a ete ejecte. Re-invitation forcee !`, 'success');
+                    await this.reinvite(this.mainClient, chanId, partnerId);
                 }
             }
-        });
+        }
+    }
 
-        // 2. Message Level Monitor (Primary)
-        this.mainClient.on('messageCreate', async (message: any) => {
-            if (!this.isSentinelActive || !this.partnerClient || !this.partnerClient.user) return;
-            
-            // Diagnostic: Log ANY system message related to recipient changes
-            if (message.type === 'RECIPIENT_REMOVE' || message.type === 4 || message.type === 'RECIPIENT_ADD' || message.type === 3) {
-                console.log(`[Sentinel Diagnostic] Message Systeme Type ${message.type} dans le groupe ${message.channel?.id}`);
-            }
+    private async onMainUpdate(oldChan: any, newChan: any) {
+        if (newChan.type !== 'GROUP_DM' || !this.shieldedGroups.has(newChan.id)) return;
+        
+        const shield = this.shieldedGroups.get(newChan.id);
+        if (!shield) return;
 
-            if (message.type === 'RECIPIENT_REMOVE' || message.type === 4) {
-                const partnerId = (this.partnerClient as any).user.id.toString();
-                const chanId = message.channel?.id;
-                if (!chanId) return;
-
-                const isProtected = this.protectedGroups.has(chanId);
-
-                if (isProtected) {
-                    this.logCallback(`[Sentinel] Retrait detecte dans un groupe protege...`, 'info');
-                    
-                    // Force check if partner is still here
-                    const channel = await this.mainClient.channels.fetch(chanId).catch(() => null) as any;
-                    const isStillThere = channel && channel.recipients && channel.recipients.has(partnerId);
-
-                    if (!isStillThere) {
-                        this.logCallback(`[Sentinel] Le partenaire a ete ejecte. Re-invitation forcee !`, 'success');
-                        await this.reinvite(this.mainClient, chanId, partnerId);
+        if (newChan.name !== shield.name || newChan.icon !== shield.iconHash) {
+            this.logCallback(`[Sentinel] Tentative de modification détectée sur un groupe protégé ! Restauration...`, 'info');
+            try {
+                const updateObj: any = {};
+                if (newChan.name !== shield.name) updateObj.name = shield.name;
+                
+                // If icon changed and we have a stored buffer, restore it
+                if (newChan.icon !== shield.iconHash) {
+                    if (shield.iconBuffer) {
+                        updateObj.icon = shield.iconBuffer;
+                    } else if (shield.iconHash === null) {
+                        updateObj.icon = null; // Revert to no icon if that was the case
                     }
                 }
+
+                if (Object.keys(updateObj).length > 0) {
+                    await (newChan as any).edit(updateObj);
+                    this.logCallback(`[Sentinel] Bouclier : Groupe restauré avec succès (Nom/Icone).`, 'success');
+                }
+            } catch (e: any) {
+                this.logCallback(`[Sentinel] Échec du Revert (Shield): ${e.message}`, 'error');
             }
-        });
+        }
+    }
 
-        // 3. Shield Revert Monitor
-        this.mainClient.on('channelUpdate', async (oldChan: any, newChan: any) => {
-            if (newChan.type !== 'GROUP_DM' || !this.shieldedGroups.has(newChan.id)) return;
-            
-            const shield = this.shieldedGroups.get(newChan.id);
-            if (!shield) return;
+    private setupMainListeners() {
+        this.mainClient.on('raw', (p) => this.onMainRaw(p));
+        this.mainClient.on('messageCreate', (m) => this.onMainMessage(m));
+        this.mainClient.on('channelUpdate', (o, n) => this.onMainUpdate(o, n));
+    }
 
-            const nameChanged = newChan.name !== shield.name;
-            const iconChanged = newChan.icon !== shield.icon;
+    private removePartnerListeners() {
+        if (!this.partnerClient) return;
+        this.partnerClient.off('raw', (p) => this.onPartnerRaw(p));
+        this.partnerClient.off('messageCreate', (m) => this.onPartnerMessage(m));
+    }
 
-            if (nameChanged || iconChanged) {
-                this.logCallback(`[Sentinel] Tentative de modification detectee sur un groupe protege ! Revert en cours...`, 'info');
-                try {
-                    await (newChan as any).edit({
-                        name: shield.name,
-                        icon: shield.icon
-                    });
-                    this.logCallback(`[Sentinel] Bouclier : Groupe restaure avec succes.`, 'success');
-                } catch (e: any) {
-                    this.logCallback(`[Sentinel] Echec du Revert (Shield): ${e.message}`, 'error');
+    private onPartnerRaw(packet: any) {
+        if (!this.isSentinelActive || !this.mainClient.user) return;
+        if (packet.t === 'CHANNEL_RECIPIENT_REMOVE') {
+            const { channel_id, user } = packet.d;
+            const mainId = this.mainClient.user.id.toString();
+            if (user.id.toString() === mainId && this.protectedGroups.has(channel_id)) {
+                this.logCallback(`[Sentinel] 🛡️ Gateway : Détection de kick !`, 'success');
+                this.reinvite(this.partnerClient!, channel_id, user.id);
+            }
+        }
+    }
+
+    private async onPartnerMessage(message: any) {
+        if (!this.isSentinelActive || !this.mainClient.user) return;
+
+        if (message.type === 'RECIPIENT_REMOVE' || message.type === 4) {
+            const mainId = this.mainClient.user.id.toString();
+            const chanId = message.channel?.id;
+            if (!chanId) return;
+
+            if (this.protectedGroups.has(chanId)) {
+                this.logCallback(`[Sentinel] 🔔 Retrait détecté par le partenaire...`, 'info');
+                const channel = await this.partnerClient!.channels.fetch(chanId).catch(() => null) as any;
+                const isStillThere = channel && channel.recipients && channel.recipients.has(mainId);
+
+                if (!isStillThere) {
+                    this.logCallback(`[Sentinel] 🛡️ Compte principal éjecté. La Sentinelle vous rajoute !`, 'success');
+                    await this.reinvite(this.partnerClient!, chanId, mainId);
                 }
             }
-        });
+        }
     }
 
     private setupPartnerListeners() {
         if (!this.partnerClient) return;
-        
-        // 1. Gateway Level Monitor (Backup)
-        this.partnerClient.on('raw', (packet) => {
-            if (!this.isSentinelActive || !this.mainClient.user) return;
-            if (packet.t === 'CHANNEL_RECIPIENT_REMOVE') {
-                const { channel_id, user } = packet.d;
-                const mainId = this.mainClient.user.id.toString();
-                if (user.id.toString() === mainId && this.protectedGroups.has(channel_id)) {
-                    this.logCallback(`[Sentinel] 🛡️ Gateway : Détection de kick !`, 'success');
-                    this.reinvite(this.partnerClient!, channel_id, user.id);
-                }
-            }
-        });
-
-        // 2. Message Level Monitor (Primary for Group DMs)
-        this.partnerClient.on('messageCreate', async (message: any) => {
-            if (!this.isSentinelActive || !this.mainClient.user) return;
-
-            if (message.type === 'RECIPIENT_REMOVE' || message.type === 4) {
-                const mainId = this.mainClient.user.id.toString();
-                const chanId = message.channel?.id;
-                if (!chanId) return;
-
-                const isProtected = this.protectedGroups.has(chanId);
-
-                if (isProtected) {
-                    this.logCallback(`[Sentinel] 🔔 Retrait détecté par le partenaire...`, 'info');
-                    
-                    // Force check if main is still here
-                    const channel = await this.partnerClient!.channels.fetch(chanId).catch(() => null) as any;
-                    const isStillThere = channel && channel.recipients && channel.recipients.has(mainId);
-
-                    if (!isStillThere) {
-                        this.logCallback(`[Sentinel] 🛡️ Compte principal éjecté. La Sentinelle vous rajoute !`, 'success');
-                        await this.reinvite(this.partnerClient!, chanId, mainId);
-                    }
-                }
-            }
-        });
+        this.partnerClient.on('raw', (p) => this.onPartnerRaw(p));
+        this.partnerClient.on('messageCreate', (m) => this.onPartnerMessage(m));
     }
 
     private async checkGroupVisibility() {
@@ -213,7 +234,8 @@ export class ProtectionService {
             }
             console.log(`[DEBUG] Attempting to join code: ${code}`);
             console.log(`[DEBUG] Attempting to join code: ${code}`);
-            await (client as any).acceptInvite(code);
+            // Bypass the library's acceptInvite which crashes on the 'GUEST' bitfield flag
+            await (client as any).api.invites(code).post({ data: {} });
             this.logCallback(`[Sentinel] Re-jointure reussie (Lien invitation) !`, 'success');
             console.log(`[DEBUG] Auto-join SUCCESS for code ${code}`);
         } catch (e: any) {
@@ -223,23 +245,28 @@ export class ProtectionService {
     }
 
     private async reinvite(inviter: Client, groupId: string, targetId: string) {
+        if (!this.isSentinelActive) return;
+        
+        const lockKey = `${groupId}-${targetId}`;
+        if (this.processingInvites.has(lockKey)) return;
+        
+        this.processingInvites.add(lockKey);
+        
         try {
-            // 1. Try to get the channel
+            this.logCallback(`[Sentinel] Tentative de re-invitation pour ${targetId}...`, 'info');
+            
             let channel = inviter.channels.cache.get(groupId) as any;
             if (!channel) channel = await inviter.channels.fetch(groupId).catch(() => null);
 
             if (channel && typeof channel.addRecipient === 'function') {
                 await channel.addRecipient(targetId).catch(async (err: any) => {
-                    // If native fails, try raw with explicit token
-                    this.logCallback(`[Sentinel] Méthode native échouée, tentative directe...`, 'info');
+                    if (err.message.includes('reached')) throw err;
                     await (inviter as any).api.channels(groupId).recipients(targetId).put({
                         headers: { Authorization: inviter.token }
                     });
                 });
                 this.logCallback(`[Sentinel] Re-invitation reussie (Ajout direct) !`, 'success');
             } else {
-                // Manual fallback if channel object is not a GroupDMChannel
-                this.logCallback(`[Sentinel] Canal invalide, tentative via REST direct...`, 'info');
                 await (inviter as any).api.channels(groupId).recipients(targetId).put({
                     headers: { Authorization: inviter.token }
                 });
@@ -247,9 +274,9 @@ export class ProtectionService {
             }
         } catch (e: any) {
             this.logCallback(`[Sentinel] Echec re-invitation : ${e.message}`, 'error');
-            if (e.message.includes('friend')) {
-                this.logCallback(`[Sentinel] NOTE : Les deux comptes doivent etre AMIS pour s'inviter.`, 'error');
-            }
+        } finally {
+            // Keep the lock for 2 seconds to avoid multiple parallel invites from multiple listeners
+            setTimeout(() => this.processingInvites.delete(lockKey), 2000);
         }
     }
 
@@ -265,6 +292,7 @@ export class ProtectionService {
         try {
             const ua = new UserAgent({ deviceCategory: 'desktop' }).toString();
             this.partnerClient = new Client({
+                captchaSolver: this.solver,
                 http: { headers: { 'User-Agent': ua } }
             });
 
@@ -319,12 +347,29 @@ export class ProtectionService {
                 return { success: false, error: 'Groupe introuvable ou invalide' };
             }
 
+            let iconBuffer: Buffer | null = null;
+            if (channel.icon) {
+                try {
+                    const iconUrl = channel.iconURL({ format: 'png', size: 1024 });
+                    if (iconUrl) {
+                        const response = await fetch(iconUrl);
+                        if (response.ok) {
+                            iconBuffer = Buffer.from(await response.arrayBuffer());
+                            this.logCallback(`[Sentinel] Icone téléchargée pour le bouclier.`, 'info');
+                        }
+                    }
+                } catch (iconErr) {
+                    this.logCallback(`[Sentinel] Avertissement: Impossible de pré-charger l'icône.`, 'error');
+                }
+            }
+
             this.shieldedGroups.set(groupId, {
                 name: channel.name || '',
-                icon: channel.icon || null
+                iconHash: channel.icon || null,
+                iconBuffer: iconBuffer
             });
 
-            this.logCallback(`[Sentinel] Bouclier ACTIVE sur "${channel.name || groupId}"`, 'success');
+            this.logCallback(`[Sentinel] Bouclier ACTIF sur "${channel.name || groupId}"`, 'success');
             return { success: true, shielded: true };
         } catch (e: any) {
             return { success: false, error: e.message };
@@ -333,6 +378,8 @@ export class ProtectionService {
 
     public async stopSentinel() {
         this.isSentinelActive = false;
+        this.protectedGroups.clear();
+        this.processingInvites.clear();
         
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
@@ -340,9 +387,13 @@ export class ProtectionService {
         }
  
         if (this.partnerClient) {
+            this.removePartnerListeners();
             this.partnerClient.destroy();
             this.partnerClient = null;
         }
+        
+        this.removeMainListeners();
+        
         this.logCallback(`[Sentinel] Protection arretee.`, 'info');
         return { success: true };
     }

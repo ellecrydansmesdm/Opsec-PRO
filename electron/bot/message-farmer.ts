@@ -4,7 +4,7 @@ import { FarmerConfig } from '../../shared/types';
 export class MessageFarmer {
     private client: Client;
     private config: FarmerConfig | null = null;
-    private isRunning: boolean = false;
+    public isRunning: boolean = false;
     private timer: NodeJS.Timeout | null = null;
     private logCallback: (msg: string, type: 'info' | 'success' | 'error') => void;
 

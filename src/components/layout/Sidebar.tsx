@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2, Tractor, Bot, Users } from 'lucide-react';
+import { Shield, LayoutDashboard, Zap, Terminal, Settings, LogOut, Sparkles, UserCircle2, Crosshair } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { AccountSwitcher } from '../ui/AccountSwitcher';
 
@@ -33,21 +33,21 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => 
           </button>
         </Tooltip>
 
-        <Tooltip text="Modules">
+        <Tooltip text="Engine Hub">
           <button 
-            className={`nav-button ${activeTab === 'Modules' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('Modules')}
+            className={`nav-button ${activeTab === 'Engine' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('Engine')}
           >
             <Zap size={24} strokeWidth={2} />
           </button>
         </Tooltip>
 
-        <Tooltip text="Group Pro">
+        <Tooltip text="Raid Hub">
           <button 
-            className={`nav-button ${activeTab === 'GroupPro' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('GroupPro')}
+            className={`nav-button ${activeTab === 'Raid' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('Raid')}
           >
-            <Users size={24} strokeWidth={2} />
+            <Crosshair size={24} strokeWidth={2} />
           </button>
         </Tooltip>
 
@@ -57,33 +57,6 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout }: SidebarProps) => 
             onClick={() => setActiveTab('Logs')}
           >
             <Terminal size={24} strokeWidth={2} />
-          </button>
-        </Tooltip>
-
-        <Tooltip text="Farmer">
-          <button 
-            className={`nav-button ${activeTab === 'Farmer' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('Farmer')}
-          >
-            <Tractor size={24} strokeWidth={2} />
-          </button>
-        </Tooltip>
-
-        <Tooltip text="Auto-Responder">
-          <button 
-            className={`nav-button ${activeTab === 'Responder' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('Responder')}
-          >
-            <Bot size={24} strokeWidth={2} />
-          </button>
-        </Tooltip>
-
-        <Tooltip text="Animations">
-          <button 
-            className={`nav-button ${activeTab === 'Animations' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('Animations')}
-          >
-            <Sparkles size={24} strokeWidth={2} />
           </button>
         </Tooltip>
 

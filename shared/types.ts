@@ -113,6 +113,32 @@ export interface AppSettings {
   accounts: Account[];
   // Sentinel Mode (Anti-Kick)
   sentinelEnabled: boolean;
+  // Account memory
+  lastActiveAccountId?: string;
+  // Advanced Automation
+  automationConfig?: AutomationConfig;
+}
+
+export interface AutomationConfig {
+  autoReport: {
+    enabled: boolean;
+    targetUserId: string;
+    targetGuildId?: string; // Optional: restrict to a specific server
+    floodLimit: number; // messages per minute
+    insultKeywords: string[];
+    useRegex?: boolean; // New: support regex for keywords
+    historyScanDepth?: number; // New: how many messages to analyze in history
+    reportCategory: number[]; // breadcrumbs [3, 28, 72]
+  };
+  nitroSniper: {
+    enabled: boolean;
+    priorityMain: boolean;
+  };
+  giveawayJoiner: {
+    enabled: boolean;
+    delay: number; // jitter delay in ms
+  };
+  capMonsterKey?: string;
 }
 
 export interface FarmerConfig {

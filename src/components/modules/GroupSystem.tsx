@@ -139,6 +139,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
     const [shieldedGroups, setShieldedGroups] = useState<string[]>([]);
 
     // Advanced Tools State
+    const [groupSearchTerm, setGroupSearchTerm] = useState('');
     const [friends, setFriends] = useState<any[]>([]);
     const [isCloning, setIsCloning] = useState(false);
     const [isMassAdding, setIsMassAdding] = useState(false);
@@ -469,7 +470,6 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                         </div>
                     ) : (
                         <>
-
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '14px', border: '1px solid var(--border)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -509,18 +509,28 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                 </div>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '15px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <label style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px' }}>GROUPES PROTÉGÉS ({protectedGroups.length})</label>
-                                            <button 
-                                                onClick={() => {
-                                                    if (protectedGroups.length === groups.length) setProtectedGroups([]);
-                                                    else setProtectedGroups(groups.map((g: any) => g.id));
-                                                }}
-                                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 6px', fontSize: '8px', color: 'white', cursor: 'pointer', opacity: 0.6 }}
-                                            >
-                                                {protectedGroups.length === groups.length ? 'TOUT DÉCOCHER' : 'TOUT COCHER'}
-                                            </button>
+                                        </div>
+                                        <div style={{ position: 'relative', flex: 1, maxWidth: '200px' }}>
+                                            <Search size={10} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                                            <input 
+                                                type="text" 
+                                                placeholder="RECHERCHER..." 
+                                                value={groupSearchTerm}
+                                                onChange={(e) => setGroupSearchTerm(e.target.value)}
+                                                style={{ 
+                                                    width: '100%', 
+                                                    padding: '6px 10px 6px 28px', 
+                                                    background: 'rgba(255,255,255,0.03)', 
+                                                    border: '1px solid var(--border)', 
+                                                    borderRadius: '8px', 
+                                                    fontSize: '9px', 
+                                                    color: 'white',
+                                                    fontWeight: '800'
+                                                }} 
+                                            />
                                         </div>
                                         <button 
                                             onClick={async () => {
@@ -542,51 +552,43 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                     <div style={{ height: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid var(--border)', padding: '8px' }} className="custom-scrollbar">
                                         {(groups || []).length === 0 ? (
                                             <div style={{ padding: '30px 20px', textAlign: 'center', opacity: 0.3, fontSize: '11px' }}>Aucun DM de groupe detecte</div>
-                                        ) : groups.map(g => (
-                                            <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
-                                                <div 
-                                                    style={{ 
-                                                        padding: '10px 15px', borderRadius: '10px',
-                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                        background: protectedGroups.includes(g.id) ? 'rgba(255, 68, 68, 0.08)' : 'rgba(255,255,255,0.01)',
-                                                        border: `1px solid ${protectedGroups.includes(g.id) ? 'rgba(255, 68, 68, 0.3)' : 'transparent'}`,
-                                                        fontSize: '11px', transition: '0.2s'
-                                                    }}
-                                                >
-                                                    <div onClick={() => toggleGroupProtection(g.id)} style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ opacity: protectedGroups.includes(g.id) ? 1 : 0.6, fontWeight: protectedGroups.includes(g.id) ? '700' : '400' }}>{g.name}</span>
-                                                        {protectedGroups.includes(g.id) && <ShieldCheck size={14} color="#ff4444" />}
-                                                    </div>
-
-                                                    {/* Shield Toggle (Always Visible) */}
+                                        ) : groups
+                                            .filter(g => g.name.toLowerCase().includes(groupSearchTerm.toLowerCase()))
+                                            .map(g => (
+                                                <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
                                                     <div 
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleShield(g.id); }}
                                                         style={{ 
-                                                            padding: '4px', cursor: 'pointer', borderRadius: '4px',
-                                                            background: shieldedGroups.includes(g.id) ? 'rgba(var(--accent-rgb), 0.2)' : 'transparent',
-                                                            color: shieldedGroups.includes(g.id) ? 'var(--accent)' : 'rgba(255,255,255,0.2)',
-                                                            transition: '0.2s',
-                                                            boxShadow: shieldedGroups.includes(g.id) ? '0 0 10px rgba(var(--accent-rgb), 0.3)' : 'none'
+                                                            padding: '10px 15px', borderRadius: '10px',
+                                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                            background: protectedGroups.includes(g.id) ? 'rgba(255, 68, 68, 0.08)' : 'rgba(255,255,255,0.01)',
+                                                            border: `1px solid ${protectedGroups.includes(g.id) ? 'rgba(255, 68, 68, 0.3)' : 'transparent'}`,
+                                                            fontSize: '11px', transition: '0.2s'
                                                         }}
-                                                        title={shieldedGroups.includes(g.id) ? "BOUCLIER ACTIF (Metadonnees protegees)" : "Activer le bouclier (Nom/Icone)"}
                                                     >
-                                                        {shieldedGroups.includes(g.id) ? <Lock size={14} color="var(--accent)" /> : <Unlock size={14} />}
+                                                        <div onClick={() => toggleGroupProtection(g.id)} style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ opacity: protectedGroups.includes(g.id) ? 1 : 0.6, fontWeight: protectedGroups.includes(g.id) ? '700' : '400' }}>{g.name}</span>
+                                                            {protectedGroups.includes(g.id) && <ShieldCheck size={14} color="#ff4444" />}
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {protectedGroups.includes(g.id) && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 10px var(--accent)' }}></div>}
+                                                        </div>
                                                     </div>
+                                                    {protectedGroups.includes(g.id) && (
+                                                        <input 
+                                                            type="text"
+                                                            placeholder="Lien d'invitation (optionnel)"
+                                                            value={groupLinks[g.id] || ''}
+                                                            onChange={(e) => setGroupLinks({...groupLinks, [g.id]: e.target.value})}
+                                                            style={{ 
+                                                                fontSize: '9px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', 
+                                                                padding: '5px 10px', borderRadius: '6px', color: 'rgba(255,255,255,0.7)', outline: 'none' 
+                                                            }}
+                                                        />
+                                                    )}
                                                 </div>
-                                                {protectedGroups.includes(g.id) && (
-                                                    <input 
-                                                        type="text"
-                                                        placeholder="Lien d'invitation (optionnel)"
-                                                        value={groupLinks[g.id] || ''}
-                                                        onChange={(e) => setGroupLinks({...groupLinks, [g.id]: e.target.value})}
-                                                        style={{ 
-                                                            fontSize: '9px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', 
-                                                            padding: '5px 10px', borderRadius: '6px', color: 'rgba(255,255,255,0.7)', outline: 'none' 
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
+                                            ))
+                                        }
                                     </div>
                                 </div>
                             </div>

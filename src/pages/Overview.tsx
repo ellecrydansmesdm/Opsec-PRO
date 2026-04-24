@@ -96,13 +96,13 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
-                    }} title={user.displayName || user.username}>{user.displayName || user.username}</h2>
+                    }} title={user?.displayName || user?.username}>{user?.displayName || user?.username}</h2>
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6, marginBottom: '4px' }}>{user.username}#{user.id.slice(-4)}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6, marginBottom: '4px' }}>{user?.username}#{user?.id?.slice(-4)}</p>
                   
                   {/* Badges Container */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {user.badges?.map((badge, i) => (
+                    {user?.badges?.map((badge, i) => (
                       <div key={i} className="discord-badge-mini" title={badge.toUpperCase()}>
                         {badge === 'nitro' ? (
                           <img src={nitroIcon} alt="nitro" style={{ width: '20px', height: '20px' }} />
@@ -140,20 +140,20 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <div>
                   <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>User ID</p>
-                  <p style={{ fontSize: '12px', color: 'white', fontWeight: '600', opacity: 0.8 }}>{user.id}</p>
+                  <p style={{ fontSize: '12px', color: 'white', fontWeight: '600', opacity: 0.8 }}>{user?.id}</p>
                 </div>
                 <div>
                   <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>Nitro status</p>
-                  <p style={{ fontSize: '13px', color: user.nitro ? 'var(--success)' : 'var(--text-dim)', fontWeight: '800' }}>
-                    {user.nitroExpiry || (user.nitro ? 'Active' : 'Inactive')}
+                  <p style={{ fontSize: '13px', color: user?.nitro ? 'var(--success)' : 'var(--text-dim)', fontWeight: '800' }}>
+                    {user?.nitroExpiry || (user?.nitro ? 'Active' : 'Inactive')}
                   </p>
                 </div>
               </div>
 
               {/* StatCircles (Right) */}
               <div style={{ display: 'flex', gap: '32px' }}>
-                <StatCircle count={user.guildsCount} max={100} label="SERVERS" size={120} fontSize="28px" strokeWidth={8} />
-                <StatCircle count={user.friendsCount} max={1000} label="FRIENDS" size={120} fontSize="28px" strokeWidth={8} />
+                <StatCircle count={user?.guildsCount || 0} max={100} label="SERVERS" size={120} fontSize="28px" strokeWidth={8} />
+                <StatCircle count={user?.friendsCount || 0} max={1000} label="FRIENDS" size={120} fontSize="28px" strokeWidth={8} />
               </div>
 
             </div>

@@ -10,6 +10,8 @@ import { ghostTracker } from '../services/ghost-tracker';
 const ProxyAgent = require('proxy-agent');
 const UserAgent = require('user-agents');
 import { profileCache } from '../services/profile-cache';
+import { AutomationService } from './automation-service';
+import { ReactionService } from './reaction-service';
 
 export class BotService extends EventEmitter {
     public client: Client;
@@ -30,6 +32,8 @@ export class BotService extends EventEmitter {
     private isPomeloBatching: boolean = false;
     private currentPriorityStatus: string | null = null;
     private lastStatusUpdateAt: number = 0;
+    public automationService: AutomationService;
+    public reactionService: ReactionService;
     private proxyList: string[] = [];
     private currentProxyIndex: number = 0;
     private messageCounter: number = 0;
@@ -63,7 +67,10 @@ export class BotService extends EventEmitter {
         );
         this.protectionService = new (require('./protection-service').ProtectionService)(this.client, (msg: any, type: any) => this.log(msg, type));
         this.appDetector = new (require('./app-detector').AppDetector)();
-
+        this.automationService = new AutomationService(this.client, (msg, type) => this.log(msg, type));
+        this.reactionService = new ReactionService((msg, type) => this.log(msg, type));
+        this.reactionService.setSolver((captcha, UA) => this.solveCaptcha(captcha, UA));
+        
         this.profileRotator.setPulseCallback((data) => {
             BrowserWindow.getAllWindows().forEach(win => {
                 win.webContents.send('rotator-pulse', data);
@@ -144,9 +151,88 @@ export class BotService extends EventEmitter {
         });
     }
 
+    public async checkCapMonsterKey(key: string) {
+        if (!key) return { success: false, error: 'Clé manquante' };
+        try {
+            const res = await fetch('https://api.capmonster.cloud/getBalance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientKey: key })
+            }).then(r => r.json()) as any;
+
+            if (res.errorId === 0) {
+                this.log(`[CapMonster] Clé valide. Solde : ${res.balance}$`, 'success');
+                return { success: true, balance: res.balance };
+            } else {
+                return { success: false, error: `Erreur ${res.errorCode}` };
+            }
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    }
+
     public log(msg: string, type: 'info' | 'success' | 'error' = 'info') {
         console.log(chalk.blue(`[LOG] ${msg}`));
         this.emit('bot-log', { msg, type, time: new Date().toLocaleTimeString() });
+    }
+
+    private async solveCaptcha(captcha: any, UA: string): Promise<string> {
+        const key = this.settings?.automationConfig?.capMonsterKey;
+        if (!key || key.trim() === '') {
+            this.log('Captcha détecté. Tentative sans clé CapMonster (Risque d\'échec)...', 'info');
+            return ''; // Try anyway without a key (Discord will likely reject)
+        }
+
+        this.log('[CapMonster] Résolution du captcha hCaptcha en cours...', 'info');
+        try {
+            const createRes = await fetch('https://api.capmonster.cloud/createTask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientKey: key,
+                    task: {
+                        type: "HCaptchaTaskProxyless",
+                        websiteURL: "https://discord.com",
+                        websiteKey: captcha.captcha_sitekey,
+                        isInvisible: true,
+                        data: captcha.captcha_rqdata,
+                        userAgent: UA
+                    }
+                })
+            }).then(res => res.json()) as any;
+
+            if (createRes.errorId !== 0) {
+                this.log(`[CapMonster] Erreur de création : ${createRes.errorCode}`, 'error');
+                throw new Error(`CapMonster Error: ${createRes.errorCode}`);
+            }
+
+            const taskId = createRes.taskId;
+            for (let i = 0; i < 60; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const resultRes = await fetch('https://api.capmonster.cloud/getTaskResult', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientKey: key,
+                        taskId: taskId
+                    })
+                }).then(res => res.json()) as any;
+
+                if (resultRes.status === 'ready') {
+                    this.log('[CapMonster] Captcha résolu avec succès !', 'success');
+                    return resultRes.solution.gRecaptchaResponse;
+                }
+                
+                if (resultRes.errorId !== 0) {
+                    this.log(`[CapMonster] Erreur de résolution : ${resultRes.errorCode}`, 'error');
+                    throw new Error(`CapMonster Error: ${resultRes.errorCode}`);
+                }
+            }
+            throw new Error('CapMonster Timeout');
+        } catch (err: any) {
+            this.log(`[CapMonster] Échec fatal : ${err.message}`, 'error');
+            throw err;
+        }
     }
 
     async purgeMessages(channelId: string, amount: number, purgeAll: boolean = false, delay: number = 1000) {
@@ -286,7 +372,17 @@ export class BotService extends EventEmitter {
     async login(token: string) {
         try {
             this.cleanupAsync(); 
-            this.client = new Client();
+            
+            const ua = new UserAgent({ deviceCategory: 'desktop' }).toString();
+            this.client = new Client({
+                captchaSolver: (captcha: any, UA: string) => this.solveCaptcha(captcha, UA),
+                http: {
+                    headers: {
+                        'User-Agent': ua
+                    }
+                }
+            });
+
             this.voiceStalker.setClient(this.client);
             this.autoResponder.setClient(this.client);
             this.messageFarmer.setClient(this.client);
@@ -299,6 +395,9 @@ export class BotService extends EventEmitter {
             
             this.setupEvents(); 
             this.protectionService.setMainClient(this.client);
+            this.protectionService.setSolver((captcha, UA) => this.solveCaptcha(captcha, UA));
+            this.automationService.setClient(this.client);
+            this.reactionService.setSolver((captcha, UA) => this.solveCaptcha(captcha, UA));
             await this.client.login(token);
             if (!this.client.readyAt) {
                 await new Promise((resolve) => this.client.once('ready', resolve));
@@ -408,29 +507,58 @@ export class BotService extends EventEmitter {
         }
     }
 
+    private lastPriorityUpdateAt: number = 0;
+    private lastStatusText: string = "";
+
     public updateCustomStatus(text: string, isPriority: boolean = false) {
-        if (!this.client.user) return;
+        if (!this.client.user || !this.client.token) return;
+        
         const now = Date.now();
-        if (!isPriority && this.currentPriorityStatus) return;
+        const rawStatus = this.sanitizeContent(text).substring(0, 127);
         
-        if (isPriority) this.currentPriorityStatus = text;
-        else this.currentPriorityStatus = null;
-
-        let rawStatus = this.sanitizeContent(text);
-        rawStatus = rawStatus.length > 125 ? rawStatus.substring(0, 125) + '...' : rawStatus;
+        // --- SMART THROTTLING ---
+        // Priority (Lyrics): No delay (Real-time)
+        // Standard: 2000ms
+        const throttleLimit = isPriority ? 0 : 2000;
+        const timeSinceLast = now - (isPriority ? this.lastPriorityUpdateAt : this.lastStatusUpdateAt);
         
-        const currentPresence = this.client.user.presence;
-        const currentBubble = currentPresence?.activities.find((a: any) => a.type === 'CUSTOM' || (a.type as any) === 4)?.state;
+        if (timeSinceLast < throttleLimit) return;
+        
+        // Skip redundant updates (but ALWAYS allow clearing the status)
+        if (rawStatus !== '' && rawStatus === this.lastStatusText && timeSinceLast < 10000) return;
 
-        if (currentBubble === rawStatus && now - this.lastStatusUpdateAt < 30000) return;
-        if (rawStatus !== '' && now - this.lastStatusUpdateAt < 1500) return; // 1.5s limit to prevent Discord ratelimits while keeping lyrics fluid
+        // Update timestamps
+        if (isPriority) this.lastPriorityUpdateAt = now;
+        else this.lastStatusUpdateAt = now;
+        this.lastStatusText = rawStatus;
 
-        this.lastStatusUpdateAt = now;
         try {
-            (this.client as any).settings.setCustomStatus({ text: rawStatus });
-        } catch (e) {
-            console.error('[BotService] Error updating status:', e);
-        }
+            if (rawStatus === '') {
+                // Double cleanup: settings + presence
+                (this.client as any).settings.setCustomStatus(null).catch(() => {});
+                
+                const activities = this.client.user.presence.activities.filter((a: any) => 
+                    a.type !== 'CUSTOM' && a.id !== 'custom'
+                );
+                (this.client.user as any).setPresence({ activities });
+            } else {
+                const activities = this.client.user.presence.activities.filter((a: any) => 
+                    a.type !== 'CUSTOM' && a.id !== 'custom'
+                );
+                
+                activities.push({
+                    type: 'CUSTOM',
+                    name: 'Custom Status',
+                    state: rawStatus
+                } as any);
+
+                (this.client.user as any).setPresence({ activities });
+
+                if (isPriority) {
+                    this.log(`[Spotify] Push Lyrics: "${rawStatus}"`, 'info');
+                }
+            }
+        } catch (e) {}
     }
 
     public updateEngineSettings(settings: AppSettings) {
@@ -462,6 +590,10 @@ export class BotService extends EventEmitter {
 
         if (settings.responderConfig) {
             this.autoResponder.updateConfig(settings.responderConfig);
+        }
+
+        if (settings.automationConfig) {
+            this.automationService.updateConfig(settings.automationConfig);
         }
     }
 

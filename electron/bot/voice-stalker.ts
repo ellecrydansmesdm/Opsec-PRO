@@ -12,6 +12,10 @@ export class VoiceStalker {
     private config: FarmerConfig | null = null;
     private hopperTimer: NodeJS.Timeout | null = null;
     private logCallback: (msg: string, type: 'info' | 'success' | 'error') => void;
+    
+    public get isActive(): boolean {
+        return this.status !== 'idle';
+    }
 
     constructor(client: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void) {
         this.client = client;

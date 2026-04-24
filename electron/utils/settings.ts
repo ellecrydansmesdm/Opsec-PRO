@@ -20,7 +20,29 @@ export const defaultSettings: AppSettings = {
     audioEnabled: true,
     cyberCursorEnabled: false,
     accounts: [],
-    sentinelEnabled: false
+    sentinelEnabled: false,
+    farmerConfig: {
+      enabled: false,
+      vocalHopper: {
+        enabled: false,
+        channelIds: [],
+        interval: 10,
+        jitter: true
+      },
+      messageFarmer: {
+        enabled: false,
+        channelIds: [],
+        phrases: [],
+        delay: 60
+      },
+      stealthMode: true
+    },
+    responderConfig: {
+      enabled: false,
+      afkOnly: true,
+      dmOnly: true,
+      rules: []
+    }
 };
 
 export const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.json');

@@ -3,10 +3,15 @@ import { Tractor, Clock, Radio, MessageSquare, Shield, Play, Square, Plus, Trash
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useUserStore } from "@/store/useUserStore";
 
+interface FarmerStatus {
+  status: 'idle' | 'hopping' | 'connected';
+  uptime: number;
+}
+
 export const Farmer = () => {
   const { settings, updateSetting } = useSettingsStore();
   const { user } = useUserStore();
-  const [status, setStatus] = useState<any>({ status: 'idle', uptime: 0 });
+  const [status, setStatus] = useState<FarmerStatus>({ status: 'idle', uptime: 0 });
   const [newVcId, setNewVcId] = useState('');
   const [newMessageChannelId, setNewMessageChannelId] = useState('');
   const [newPhrase, setNewPhrase] = useState('');

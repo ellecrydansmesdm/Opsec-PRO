@@ -16,6 +16,7 @@ export class AutoResponder {
     }
 
     public updateConfig(config: ResponderConfig) {
+        if (!config) return;
         this.config = config;
         if (config.enabled) {
             this.logCallback(`[AUTO-RESPONDER] Moteur synchronisé (${config.rules.length} règles)`, 'info');
@@ -28,7 +29,7 @@ export class AutoResponder {
         }
 
         this.boundListener = async (message: Message) => {
-            if (!this.config?.enabled || !this.client.user) return;
+            if (!this.config || !this.config.enabled || !this.client.user) return;
             if (message.author.id === this.client.user.id) return;
 
             // Check if DM only
@@ -37,8 +38,9 @@ export class AutoResponder {
 
             // AFK Mode Only: Check if Farmer or VoiceStalker is active
             if (this.config.afkOnly && this.botService) {
-                const isFarmerActive = this.botService.settings?.farmerConfig?.enabled;
-                const isVoiceActive = this.botService.voiceStalker?.isHopping; 
+                const isFarmerActive = this.botService.messageFarmer?.isRunning;
+                const isVoiceActive = this.botService.voiceStalker?.isActive; 
+                
                 if (!isFarmerActive && !isVoiceActive) return;
             }
 
@@ -51,6 +53,10 @@ export class AutoResponder {
                     try {
                         const jitter = 1000 + Math.random() * 3000;
                         await new Promise(r => setTimeout(r, jitter)); // Human jitter
+                        
+                        // Check if we can still send it (client status might have changed during jitter)
+                        if (!this.client.user) return;
+                        
                         await message.reply(reply);
                         this.logCallback(`[RESPONDER] Réponse auto à ${message.author.username} : "${reply}"`, 'success');
                     } catch (e: any) {

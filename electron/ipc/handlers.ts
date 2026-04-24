@@ -1,4 +1,4 @@
-import { ipcMain, app, BrowserWindow, dialog, clipboard } from 'electron';
+import { ipcMain, app, BrowserWindow, dialog, clipboard, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { BotService } from '../bot/bot-service';
@@ -95,7 +95,12 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
         
         // Save global settings (like autoLogin) safely WITH the updated accounts
         const current = getSettings();
-        saveSettings({ ...current, autoLogin: rememberMe });
+        const updatedAccounts = accountManager ? accountManager.getAccounts() : current.accounts;
+        saveSettings({ 
+            ...current, 
+            autoLogin: rememberMe, 
+            accounts: updatedAccounts 
+        });
 
         // Notify UI about new account and autoLogin state
         notifySettingsUpdate(mainWindow);
@@ -124,6 +129,10 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
           // Sync engine with latest settings
           botService.updateEngineSettings(getSettings());
           
+          // Double ensure persistence of selected flag in global config
+          const current = getSettings();
+          saveSettings({ ...current, accounts: accountManager.getAccounts() });
+
           // Notify UI to refresh account list / selection
           notifySettingsUpdate(mainWindow);
 
@@ -438,7 +447,6 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   });
 
   ipcMain.handle('open-external', async (_, url) => {
-    const { shell } = require('electron');
     shell.openExternal(url);
     return { success: true };
   });
@@ -458,6 +466,24 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     }
 
     return { success: true, data: result.filePaths[0] };
+  });
+
+  ipcMain.handle('select-token-file', async () => {
+    if (!mainWindow) return { success: false, error: 'Fenêtre introuvable' };
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [{ name: 'Text Files', extensions: ['txt'] }]
+    });
+
+    if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Annulé' };
+
+    try {
+      const content = fs.readFileSync(result.filePaths[0], 'utf-8');
+      return { success: true, data: content };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('toggle-animation', async (_, config) => {
@@ -519,31 +545,6 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     }
   });
 
-  ipcMain.handle('spotify:get-local-lrc', async (_, { artist, title }) => {
-    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
-    const content = lyricsService.getCustomLyrics(artist, title);
-    return { success: !!content, data: content };
-  });
-
-  ipcMain.handle('spotify:save-lrc', async (_, { artist, title, content }) => {
-    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
-    const success = await lyricsService.saveCustomLyrics(artist, title, content);
-    return { success };
-  });
-
-  ipcMain.handle('spotify:import-lrc', async (_, { artist, title }) => {
-    if (!mainWindow) return { success: false };
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile'],
-      filters: [{ name: 'Lyrics', extensions: ['lrc', 'txt'] }]
-    });
-
-    if (result.canceled || result.filePaths.length === 0) return { success: false };
-
-    const lyricsService = new (require('../services/lyrics-service').LyricsService)(app.getPath('userData'));
-    const success = await lyricsService.importLrcFile(artist, title, result.filePaths[0]);
-    return { success };
-  });
 
   // --- V1.2.1 Pomelo Sniper Handlers ---
   ipcMain.handle('pomelo:check', async (_, username) => {
@@ -620,5 +621,15 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('hypersquad:set', async (_, { houseId }) => {
     if (!botService) return { success: false, error: 'Bot non initialise' };
     return await botService.setHypeSquad(houseId);
+  });
+
+  ipcMain.handle('start-auto-vote', async (_, { messageId, channelId, emoji, accounts }) => {
+    if (!botService) return { success: false, error: 'Bot non initialise' };
+    return await botService.reactionService.nukeReaction(messageId, channelId, emoji, accounts);
+  });
+
+  ipcMain.handle('capmonster:check-key', async (_, key) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkCapMonsterKey(key);
   });
 }

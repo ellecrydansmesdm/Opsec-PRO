@@ -14,15 +14,11 @@ import { FullScreenBackground } from '@/components/ui/FullScreenBackground';
 import { LogsDock } from '@/components/layout/LogsDock';
 import { AccountSwitcher } from '@/components/ui/AccountSwitcher';
 
-// Pages
 import { Overview } from '@/pages/Overview';
-import { Modules } from '@/pages/Modules';
-import { Farmer } from '@/pages/Farmer';
-import { AutoResponder } from '@/pages/AutoResponder';
 import { Logs } from '@/pages/Logs';
 import { Settings } from '@/pages/Settings';
-import { Animations } from '@/pages/Animations';
-import { GroupSystem } from '@/components/modules/GroupSystem';
+import { EngineHub } from '@/pages/EngineHub';
+import { RaidHub } from '@/pages/RaidHub';
 import { audioService } from '@/services/AudioService';
 import { motion } from 'framer-motion';
 
@@ -169,10 +165,18 @@ function App() {
           setSettings(storedSettings);
           console.log("[OPSEC] AutoLogin Flag:", storedSettings.autoLogin);
           
-          const selectedAccount = storedSettings.accounts?.find((a: any) => a.selected);
-          console.log("[OPSEC] Selected Account ID:", selectedAccount?.id || "NONE");
+          const lastId = storedSettings.lastActiveAccountId;
+          let selectedAccount = storedSettings.accounts?.find((a: any) => a.id === lastId);
+          if (!selectedAccount) {
+              selectedAccount = storedSettings.accounts?.find((a: any) => a.selected);
+          }
+          if (!selectedAccount && storedSettings.accounts?.length > 0) {
+              selectedAccount = storedSettings.accounts[0];
+          }
+          
+          console.log("[OPSEC] Target Account ID for Boot:", selectedAccount?.id || "NONE");
 
-          // ONLY attempt auto-login if the toggle is ON AND we have a selected account
+          // ONLY attempt auto-login if the toggle is ON AND we have a valid account
           if (storedSettings.autoLogin && selectedAccount) {
             console.log("[OPSEC] Auto-login attempt for:", selectedAccount.username);
             const loginRes = await window.electronAPI.selectAccount(selectedAccount.id);
@@ -279,28 +283,16 @@ function App() {
               )}
             </KeepAlivePage>
             
-            <KeepAlivePage active={activeTab === 'Modules'}>
-              <Modules onConfirm={(data) => setConfirmData(data)} />
+            <KeepAlivePage active={activeTab === 'Engine'}>
+              {user && <EngineHub showToast={showToast} />}
             </KeepAlivePage>
 
-            <KeepAlivePage active={activeTab === 'GroupPro'}>
-              {user && <GroupSystem showToast={showToast} />}
+            <KeepAlivePage active={activeTab === 'Raid'}>
+              {user && <RaidHub showToast={showToast} onConfirm={(data) => setConfirmData(data)} />}
             </KeepAlivePage>
-            
-            <KeepAlivePage active={activeTab === 'Farmer'}>
-              <Farmer />
-            </KeepAlivePage>
-            
-            <KeepAlivePage active={activeTab === 'Responder'}>
-              <AutoResponder />
-            </KeepAlivePage>
-            
+
             <KeepAlivePage active={activeTab === 'Logs'}>
               <Logs />
-            </KeepAlivePage>
-            
-            <KeepAlivePage active={activeTab === 'Animations'}>
-              <Animations />
             </KeepAlivePage>
             
             <KeepAlivePage active={activeTab === 'Settings'}>
