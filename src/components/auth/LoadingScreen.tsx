@@ -122,7 +122,7 @@ export const LoadingScreen = () => {
           WebkitTextFillColor: 'transparent',
           filter: 'drop-shadow(0 0 20px var(--accent-glow))'
         }}>
-          OPSEC <span style={{ color: 'var(--accent)', WebkitTextFillColor: 'var(--accent)', fontWeight: '950', textShadow: '0 0 15px var(--accent-glow)' }}>PRO</span> <span style={{ opacity: 0.4, fontSize: '14px', letterSpacing: '2px', WebkitTextFillColor: '#fff' }}>v1.2.1</span>
+          OPSEC <span style={{ color: 'var(--accent)', WebkitTextFillColor: 'var(--accent)', fontWeight: '950', textShadow: '0 0 15px var(--accent-glow)' }}>PRO</span> <span style={{ opacity: 0.4, fontSize: '14px', letterSpacing: '2px', WebkitTextFillColor: '#fff' }}>RELEASE</span>
         </h1>
         <p style={{
           fontSize: '10px', color: 'var(--accent)', 

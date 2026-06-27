@@ -12,6 +12,13 @@ export class ProtectionService {
     private processingInvites: Set<string> = new Set();
     private solver?: (captcha: any, UA: string) => Promise<string>;
 
+    private boundMainRaw = (p: any) => this.onMainRaw(p);
+    private boundMainMessage = (m: any) => this.onMainMessage(m);
+    private boundMainUpdate = (o: any, n: any) => this.onMainUpdate(o, n);
+
+    private boundPartnerRaw = (p: any) => this.onPartnerRaw(p);
+    private boundPartnerMessage = (m: any) => this.onPartnerMessage(m);
+
     constructor(mainClient: Client, logCallback: (msg: string, type: 'info' | 'success' | 'error') => void) {
         this.mainClient = mainClient;
         this.logCallback = logCallback;
@@ -31,12 +38,44 @@ export class ProtectionService {
 
     private removeMainListeners() {
         if (!this.mainClient) return;
-        this.mainClient.off('raw', (p) => this.onMainRaw(p));
-        this.mainClient.off('messageCreate', (m) => this.onMainMessage(m));
-        this.mainClient.off('channelUpdate', (o, n) => this.onMainUpdate(o, n));
+        this.mainClient.off('raw', this.boundMainRaw);
+        this.mainClient.off('messageCreate', this.boundMainMessage);
+        this.mainClient.off('channelUpdate', this.boundMainUpdate);
     }
 
     private onMainRaw(packet: any) {
+        if (packet.t === 'CHANNEL_UPDATE') {
+            const { id, name, icon, type } = packet.d;
+            if (type === 3 && this.shieldedGroups.has(id)) {
+                const shield = this.shieldedGroups.get(id);
+                if (shield && (name !== shield.name || icon !== shield.iconHash)) {
+                    this.logCallback(`[Sentinel] Gateway : Modification de groupe détectée pour ${id} ! Restauration immédiate...`, 'info');
+                    const channel = this.mainClient.channels.cache.get(id) as any;
+                    if (channel) {
+                        const updateObj: any = {};
+                        if (name !== shield.name) updateObj.name = shield.name;
+                        if (icon !== shield.iconHash) {
+                            if (shield.iconBuffer) {
+                                updateObj.icon = shield.iconBuffer;
+                            } else if (shield.iconHash === null) {
+                                updateObj.icon = null;
+                            }
+                        }
+                        if (Object.keys(updateObj).length > 0) {
+                            channel.edit(updateObj).then((updatedChan: any) => {
+                                if (updatedChan) {
+                                    shield.iconHash = updatedChan.icon || null;
+                                }
+                                this.logCallback(`[Sentinel] Bouclier : Groupe restauré via Gateway RAW (Nom/Icone).`, 'success');
+                            }).catch((e: any) => {
+                                this.logCallback(`[Sentinel] Échec Restauration rapide : ${e.message}`, 'error');
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         if (!this.isSentinelActive || !this.partnerClient || !this.partnerClient.user) return;
         if (packet.t === 'CHANNEL_RECIPIENT_REMOVE') {
             const { channel_id, user } = packet.d;
@@ -97,7 +136,10 @@ export class ProtectionService {
                 }
 
                 if (Object.keys(updateObj).length > 0) {
-                    await (newChan as any).edit(updateObj);
+                    const updatedChan = await (newChan as any).edit(updateObj);
+                    if (updatedChan) {
+                        shield.iconHash = updatedChan.icon || null;
+                    }
                     this.logCallback(`[Sentinel] Bouclier : Groupe restauré avec succès (Nom/Icone).`, 'success');
                 }
             } catch (e: any) {
@@ -107,15 +149,15 @@ export class ProtectionService {
     }
 
     private setupMainListeners() {
-        this.mainClient.on('raw', (p) => this.onMainRaw(p));
-        this.mainClient.on('messageCreate', (m) => this.onMainMessage(m));
-        this.mainClient.on('channelUpdate', (o, n) => this.onMainUpdate(o, n));
+        this.mainClient.on('raw', this.boundMainRaw);
+        this.mainClient.on('messageCreate', this.boundMainMessage);
+        this.mainClient.on('channelUpdate', this.boundMainUpdate);
     }
 
     private removePartnerListeners() {
         if (!this.partnerClient) return;
-        this.partnerClient.off('raw', (p) => this.onPartnerRaw(p));
-        this.partnerClient.off('messageCreate', (m) => this.onPartnerMessage(m));
+        this.partnerClient.off('raw', this.boundPartnerRaw);
+        this.partnerClient.off('messageCreate', this.boundPartnerMessage);
     }
 
     private onPartnerRaw(packet: any) {
@@ -153,8 +195,8 @@ export class ProtectionService {
 
     private setupPartnerListeners() {
         if (!this.partnerClient) return;
-        this.partnerClient.on('raw', (p) => this.onPartnerRaw(p));
-        this.partnerClient.on('messageCreate', (m) => this.onPartnerMessage(m));
+        this.partnerClient.on('raw', this.boundPartnerRaw);
+        this.partnerClient.on('messageCreate', this.boundPartnerMessage);
     }
 
     private async checkGroupVisibility() {
@@ -285,6 +327,9 @@ export class ProtectionService {
     public async startSentinel(partnerToken: string, groupIds: string[], groupLinks: {[key: string]: string} = {}) {
         if (this.isSentinelActive) await this.stopSentinel();
 
+        this.removeMainListeners();
+        this.setupMainListeners();
+
         this.protectedGroups = new Set(groupIds);
         this.groupLinks = groupLinks;
         this.logCallback(`[Sentinel] Demarrage de la protection sur ${groupIds.length} groupes...`, 'info');
@@ -329,6 +374,14 @@ export class ProtectionService {
             await this.partnerClient.login(partnerToken);
             return { success: true };
         } catch (e: any) {
+            if (this.heartbeatInterval) {
+                clearInterval(this.heartbeatInterval);
+                this.heartbeatInterval = null;
+            }
+            if (this.partnerClient) {
+                try { this.partnerClient.destroy(); } catch (_) {}
+                this.partnerClient = null;
+            }
             this.logCallback(`[Sentinel] Echec connexion partenaire : ${e.message}`, 'error');
             return { success: false, error: e.message };
         }
@@ -380,6 +433,7 @@ export class ProtectionService {
         this.isSentinelActive = false;
         this.protectedGroups.clear();
         this.processingInvites.clear();
+        this.shieldedGroups.clear();
         
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
@@ -387,7 +441,10 @@ export class ProtectionService {
         }
  
         if (this.partnerClient) {
-            this.removePartnerListeners();
+            this.partnerClient.off('raw', this.boundPartnerRaw);
+            this.partnerClient.off('messageCreate', this.boundPartnerMessage);
+            this.partnerClient.removeAllListeners('ready');
+            this.partnerClient.removeAllListeners('error');
             this.partnerClient.destroy();
             this.partnerClient = null;
         }

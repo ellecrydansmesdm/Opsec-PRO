@@ -4,6 +4,8 @@ import {
     FileText, ShieldCheck, AlertCircle, RefreshCw, Eye, EyeOff, Sparkles, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { audioService } from '@/services/AudioService';
 
 interface PomeloSniperProps {
     showToast: (message: string, type: 'success' | 'danger') => void;
@@ -17,6 +19,7 @@ interface PomeloStatus {
 }
 
 export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
+    const { settings } = useSettingsStore();
     const [manualUsername, setManualUsername] = useState('');
     const [batchText, setBatchText] = useState('');
     const [isBatchRunning, setIsBatchRunning] = useState(false);
@@ -24,9 +27,10 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [delay, setDelay] = useState(2500);
+    const [botToken, setBotToken] = useState('');
     
     // OG Generator State
-    const [generatorType, setGeneratorType] = useState('3l');
+    const [generatorType, setGeneratorType] = useState('custom');
     const [generatorAmount, setGeneratorAmount] = useState(100);
     
     const [statusList, setStatusList] = useState<PomeloStatus[]>([]);
@@ -41,9 +45,16 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
     }, []);
 
     useEffect(() => {
-        // Listen for live updates from the backend batch process
+        // Listen for live updates from the background batch process
         const unsubscribe = window.electronAPI.onPomeloUpdate((data: any) => {
             addStatus(data.username, data.status, data.firstSeen);
+            if (data.status === 'available') {
+                audioService.play('pomelo_username_found');
+            } else if (data.status === 'claimed') {
+                audioService.play('pomelo_username_claimed');
+            } else if (data.status === 'error' || data.status === 'captcha') {
+                audioService.play('pomelo_claim_failed');
+            }
         });
         return () => unsubscribe();
     }, []);
@@ -59,54 +70,65 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
     };
 
     const getCountdown = (firstSeen?: number) => {
-        if (!firstSeen) return 'Calcul...';
+        const isFr = settings.language === 'fr';
+        if (!firstSeen) return isFr ? 'Calcul...' : 'Calculating...';
         const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
         const targetDate = firstSeen + FOURTEEN_DAYS;
         const now = Date.now();
         const diff = targetDate - now;
 
-        if (diff <= 0) return 'DISPO MAINTENANT';
+        if (diff <= 0) return isFr ? 'DISPO MAINTENANT' : 'AVAILABLE NOW';
 
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const secs = Math.floor((diff % (1000 * 60)) / 1000);
 
-        return `${days}j ${hours}h ${mins}m ${secs}s`;
+        return `${days}${isFr ? 'j' : 'd'} ${hours}h ${mins}m ${secs}s`;
     };
 
     const handleManualCheck = async () => {
+        const isFr = settings.language === 'fr';
+        if (!botToken.trim()) {
+            showToast(isFr ? "Bot Token requis !" : "Bot Token required!", 'danger');
+            return;
+        }
         if (!manualUsername.trim()) return;
         setIsCheckingManual(true);
         try {
-            const res = await window.electronAPI.checkPomelo(manualUsername);
+            const res = await window.electronAPI.checkPomelo({ username: manualUsername, botToken });
             if (res.success && res.data) {
                 if (res.data.available) {
                     if (res.data.status === 'owned') {
                         addStatus(manualUsername, 'owned');
-                        showToast(`Tu possèdes déjà le pseudo ${manualUsername}.`, 'success');
+                        showToast(isFr ? `Tu possèdes déjà le pseudo ${manualUsername}.` : `You already own the username ${manualUsername}.`, 'success');
                         setIsCheckingManual(false);
                         return;
                     }
                     addStatus(manualUsername, 'available');
-                    showToast(`Pseudo ${manualUsername} DISPONIBLE !`, 'success');
+                    audioService.play('pomelo_username_found');
+                    showToast(isFr ? `Pseudo ${manualUsername} DISPONIBLE !` : `Username ${manualUsername} AVAILABLE!`, 'success');
                     
                     if (autoClaim && password) {
                         const claimRes = await window.electronAPI.claimPomelo({ username: manualUsername, password });
                         if (claimRes.success) {
                             addStatus(manualUsername, 'claimed');
-                            showToast(`SUCCÈS : Pseudo ${manualUsername} claim avec succès !`, 'success');
+                            audioService.play('pomelo_username_claimed');
+                            showToast(isFr ? `SUCCÈS : Pseudo ${manualUsername} claim avec succès !` : `SUCCESS: Username ${manualUsername} successfully claimed!`, 'success');
+                        } else {
+                            audioService.play('pomelo_claim_failed');
                         }
                     }
                 } else if (res.data.status === 'ghost') {
                     addStatus(manualUsername, 'ghost', res.data.firstSeen);
-                    showToast(`Pseudo ${manualUsername} en COOLDOWN (Ghost).`, 'success');
+                    showToast(isFr ? `Pseudo ${manualUsername} en COOLDOWN (Ghost).` : `Username ${manualUsername} is in COOLDOWN (Ghost).`, 'success');
                 } else {
                     addStatus(manualUsername, 'taken');
-                    showToast(`Pseudo ${manualUsername} déjà pris.`, 'danger');
+                    showToast(isFr ? `Pseudo ${manualUsername} déjà pris.` : `Username ${manualUsername} is already taken.`, 'danger');
                 }
             } else {
-                showToast(res.error || "Erreur lors du check", 'danger');
+                audioService.play('pomelo_claim_failed');
+                showToast(res.error || (isFr ? "Erreur lors du check" : "Error checking username"), 'danger');
             }
         } finally {
             setIsCheckingManual(false);
@@ -114,81 +136,59 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
     };
 
     const handleBatchToggle = async () => {
+        const isFr = settings.language === 'fr';
         if (isBatchRunning) {
+            audioService.play('module_stop');
             await window.electronAPI.stopPomeloBatch();
             setIsBatchRunning(false);
-            showToast("Batch check arrêté", 'danger');
+            showToast(isFr ? "Batch check arrêté" : "Batch check stopped", 'danger');
         } else {
-            const usernames = batchText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-            if (usernames.length === 0) {
-                showToast("Veuillez entrer une liste de pseudos !", 'danger');
+            if (!botToken.trim()) {
+                showToast(isFr ? "Bot Token requis !" : "Bot Token required!", 'danger');
                 return;
             }
 
+            let usernames: string[] = [];
+            if (generatorType === 'custom') {
+                usernames = batchText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                if (usernames.length === 0) {
+                    showToast(isFr ? "Veuillez entrer une liste de pseudos !" : "Please enter a list of usernames!", 'danger');
+                    return;
+                }
+            }
+
             if (autoClaim && !password) {
-                showToast("Mot de passe requis pour l'Auto-Claim !", 'danger');
+                showToast(isFr ? "Mot de passe requis pour l'Auto-Claim !" : "Password required for Auto-Claim!", 'danger');
                 return;
             }
 
             setIsBatchRunning(true);
-            showToast(`Batch lancé : ${usernames.length} pseudos`, 'success');
+            audioService.play('module_launch');
+            showToast(
+                generatorType === 'custom' 
+                    ? (isFr ? `Batch lancé : ${usernames.length} pseudos` : `Batch started: ${usernames.length} usernames`)
+                    : (isFr ? `Générateur ${generatorType.toUpperCase()} lancé` : `Generator ${generatorType.toUpperCase()} started`), 
+                'success'
+            );
             
             const res = await window.electronAPI.startPomeloBatch({ 
                 usernames, 
                 delay, 
                 autoClaim, 
-                password 
+                password,
+                botToken,
+                generator: generatorType
             });
 
             if (res.success && res.data?.claimed) {
                 addStatus(res.data.claimed, 'claimed');
-                showToast(`SNIPED : ${res.data.claimed} a été récupéré !`, 'success');
+                audioService.play('pomelo_username_claimed');
+                showToast(isFr ? `SNIPED : ${res.data.claimed} a été récupéré !` : `SNIPED: ${res.data.claimed} claimed successfully!`, 'success');
             }
             
             setIsBatchRunning(false);
         }
     };
-
-    const handleGenerateOG = () => {
-        if (generatorAmount > 1000) {
-            showToast('⚠️ Limite de sécurité : Max 1000 par clic pour éviter le Token Ban.', 'danger');
-            return;
-        }
-
-        const letters = 'abcdefghijklmnopqrstuvwxyz';
-        const alphanum = 'abcdefghijklmnopqrstuvwxyz0123456789_.';
-        
-        const generateStr = (length: number, chars: string) => {
-            let res = '';
-            for (let i = 0; i < length; i++) {
-                res += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return res;
-        };
-
-        const newBatches = new Set<string>();
-        let attempts = 0;
-        
-        while (newBatches.size < generatorAmount && attempts < generatorAmount * 3) {
-            let str = '';
-            if (generatorType === '3l') str = generateStr(3, letters);
-            else if (generatorType === '3c') str = generateStr(3, alphanum);
-            else if (generatorType === '4l') str = generateStr(4, letters);
-            else if (generatorType === '4c') str = generateStr(4, alphanum);
-            else if (generatorType === '2c') str = generateStr(2, alphanum);
-            
-            // Discord rule: no consecutive dots, no dots at edges
-            if (!str.includes('..') && !str.startsWith('.') && !str.endsWith('.')) {
-                newBatches.add(str);
-            }
-            attempts++;
-        }
-
-        const addedArr = Array.from(newBatches);
-        setBatchText(prev => prev ? prev + '\n' + addedArr.join('\n') : addedArr.join('\n'));
-        showToast(`🎲 ${addedArr.length} pseudos générés et ajoutés au Batch !`, 'success');
-    };
-
 
     return (
         <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', overflow: 'hidden' }}>
@@ -201,17 +201,32 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
                     </div>
                     <div>
                         <h2 style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '0.5px' }}>Pomelo Sniper (Username)</h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
-                            <Activity size={10} />
-                            <p className="caption" style={{ fontSize: '9px', fontWeight: 'bold' }}>PROTOCOLE DE DÉTECTION ET CAPTURE DE PSEUDOS OG</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
+                            <ShieldCheck size={10} color="var(--accent)" />
+                            <p className="caption" style={{ fontSize: '9.5px', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'none' }}>
+                                {settings.language === 'fr' 
+                                    ? "Token Bot (Obligatoire) : Requis pour interroger l'API Discord."
+                                    : "Bot Token (Mandatory): Required to query the Discord API."
+                                }
+                            </p>
                         </div>
                     </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <div className="glass-card" style={{ padding: '8px 15px', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <ShieldCheck size={14} style={{ opacity: 0.5 }} />
+                        <input 
+                            type="password" 
+                            placeholder={settings.language === 'fr' ? "Bot Token (Requis)" : "Bot Token (Required)"}
+                            value={botToken} 
+                            onChange={e => setBotToken(e.target.value)} 
+                            style={{ width: '130px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', color: 'white', fontSize: '11px', outline: 'none' }} 
+                        />
+                    </div>
+                    <div className="glass-card" style={{ padding: '8px 15px', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Clock size={14} style={{ opacity: 0.5 }} />
-                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>INTERVALLE (ms)</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{settings.language === 'fr' ? 'INTERVALLE (ms)' : 'INTERVAL (ms)'}</span>
                         <input 
                             type="number" 
                             className="no-arrows"
@@ -229,13 +244,15 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
                     
                     {/* Manual Target */}
                     <div style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', borderRadius: '18px', border: '1px solid var(--border)' }}>
-                        <label className="caption" style={{ display: 'block', marginBottom: '15px', fontSize: '10px', color: 'var(--accent)', fontWeight: 'bold' }}>CIBLE MANUELLE</label>
+                        <label className="caption" style={{ display: 'block', marginBottom: '15px', fontSize: '10px', color: 'var(--accent)', fontWeight: 'bold' }}>
+                            {settings.language === 'fr' ? 'CIBLE MANUELLE' : 'MANUAL TARGET'}
+                        </label>
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <div style={{ flex: 1, position: 'relative' }}>
                                 <Search size={16} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
                                 <input 
                                     type="text" 
-                                    placeholder="Username à sniper..." 
+                                    placeholder={settings.language === 'fr' ? "Username à sniper..." : "Username to check..."} 
                                     value={manualUsername}
                                     onChange={e => setManualUsername(e.target.value.toLowerCase())}
                                     style={{ width: '100%', padding: '14px 15px 14px 45px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border)', borderRadius: '12px', color: 'white', fontSize: '13px', outline: 'none' }}
@@ -247,7 +264,7 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
                                 className="btn-primary" 
                                 style={{ width: '120px', background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent-glow)' }}
                             >
-                                {isCheckingManual ? <RefreshCw className="animate-spin" size={16} /> : "VÉRIFIER"}
+                                {isCheckingManual ? <RefreshCw className="animate-spin" size={16} /> : (settings.language === 'fr' ? "VÉRIFIER" : "CHECK")}
                             </button>
                         </div>
                     </div>
@@ -255,60 +272,65 @@ export const PomeloSniper = ({ showToast }: PomeloSniperProps) => {
                     {/* Batch Mode */}
                     <div style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', borderRadius: '18px', border: '1px solid var(--border)', flex: 1, display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <label className="caption" style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 'bold' }}>MODE BATCH (MULTI-CHECK)</label>
+                            <label className="caption" style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 'bold' }}>
+                                {settings.language === 'fr' ? 'MODE BATCH (MULTI-CHECK)' : 'BATCH MODE (MULTI-CHECK)'}
+                            </label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
                                 <FileText size={12} />
-                                <span style={{ fontSize: '9px', fontWeight: 'bold' }}>GÉNÉRATEUR OU MANUEL</span>
+                                <span style={{ fontSize: '9px', fontWeight: 'bold' }}>
+                                    {settings.language === 'fr' ? 'GÉNÉRATEUR OU MANUEL' : 'GENERATOR OR MANUAL'}
+                                </span>
                             </div>
                         </div>
                         
-                        {/* OG Generator Hub */}
+                        {/* Generator Selection */}
                         <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                             <select 
                                 value={generatorType} 
                                 onChange={e => setGeneratorType(e.target.value)}
                                 style={{ flex: 1, background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
                             >
-                                <option value="3l">3 Lettres</option>
-                                <option value="3c">3 Caract.</option>
-                                <option value="4l">4 Lettres</option>
-                                <option value="4c">4 Caract.</option>
-                                <option value="2c">2 Caract.</option>
+                                <option value="custom">{settings.language === 'fr' ? 'Liste Personnalisée (Manuel)' : 'Custom List (Manual)'}</option>
+                                <option value="3l">{settings.language === 'fr' ? 'Générateur : 3 Lettres (Backend)' : 'Generator: 3 Letters (Backend)'}</option>
+                                <option value="3c">{settings.language === 'fr' ? 'Générateur : 3 Caract. (Backend)' : 'Generator: 3 Char. (Backend)'}</option>
+                                <option value="4l">{settings.language === 'fr' ? 'Générateur : 4 Lettres (Backend)' : 'Generator: 4 Letters (Backend)'}</option>
+                                <option value="4c">{settings.language === 'fr' ? 'Générateur : 4 Caract. (Backend)' : 'Generator: 4 Char. (Backend)'}</option>
                             </select>
-                            
-                            <input 
-                                type="number" 
-                                value={generatorAmount}
-                                onChange={e => setGeneratorAmount(Number(e.target.value))}
-                                className="no-arrows"
-                                style={{ width: '50px', background: 'rgba(0,0,0,0.4)', color: 'var(--accent)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none', textAlign: 'center', fontWeight: 'bold' }}
-                            />
-                            
-                            <button 
-                                onClick={handleGenerateOG}
-                                style={{ padding: '0 15px', background: 'rgba(0, 210, 255, 0.1)', color: 'var(--accent)', border: '1px solid rgba(0, 210, 255, 0.3)', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 210, 255, 0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 210, 255, 0.1)'}
-                            >
-                                <Sparkles size={14} /> GÉNÉRER
-                            </button>
                         </div>
                         
-                        <textarea 
-                            value={batchText} 
-                            onChange={e => setBatchText(e.target.value)} 
-                            placeholder="pseudo1
-pseudo2
-pseudo3..." 
-                            style={{ width: '100%', flex: 1, minHeight: '120px', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--border)', borderRadius: '12px', padding: '15px', color: 'white', fontSize: '12px', resize: 'none', outline: 'none', fontFamily: 'monospace' }} 
-                        />
+                        {generatorType === 'custom' ? (
+                            <textarea 
+                                value={batchText} 
+                                onChange={e => setBatchText(e.target.value)} 
+                                placeholder={settings.language === 'fr' ? "pseudo1\npseudo2\npseudo3..." : "username1\nusername2\nusername3..."} 
+                                style={{ width: '100%', flex: 1, minHeight: '120px', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--border)', borderRadius: '12px', padding: '15px', color: 'white', fontSize: '12px', resize: 'none', outline: 'none', fontFamily: 'monospace' }} 
+                            />
+                        ) : (
+                            <div style={{ flex: 1, minHeight: '120px', background: 'rgba(0, 210, 255, 0.03)', border: '1px dotted rgba(0, 210, 255, 0.2)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center' }}>
+                                <Sparkles size={24} color="var(--accent)" />
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'white' }}>
+                                    {settings.language === 'fr' ? 'Génération Backend Automatique' : 'Automatic Backend Generation'}
+                                </span>
+                                <p style={{ fontSize: '10px', color: 'var(--text-dim)', maxWidth: '240px', lineHeight: '1.4' }}>
+                                    {settings.language === 'fr' 
+                                        ? `Le serveur va générer, mélanger (shuffle) et scanner la totalité des pseudos à ${generatorType === '3l' ? '3 lettres' : generatorType === '3c' ? '3 caractères' : generatorType === '4l' ? '4 lettres' : '4 caractères'}.`
+                                        : `The backend will automatically generate, shuffle, and scan all usernames of ${generatorType === '3l' ? '3 letters' : generatorType === '3c' ? '3 characters' : generatorType === '4l' ? '4 letters' : '4 characters'}.`
+                                    }
+                                </p>
+                            </div>
+                        )}
                         <button 
                             onClick={handleBatchToggle}
                             className="btn-primary" 
                             style={{ width: '100%', marginTop: '15px', background: isBatchRunning ? 'var(--danger)' : 'var(--accent)', boxShadow: isBatchRunning ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--accent-glow)' }}
                         >
                             {isBatchRunning ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
-                            <span style={{ marginLeft: '10px' }}>{isBatchRunning ? 'ARRÊTER LE BATCH' : 'LANCER LE SCAN MASS'}</span>
+                            <span style={{ marginLeft: '10px' }}>
+                                {isBatchRunning 
+                                    ? (settings.language === 'fr' ? 'ARRÊTER LE SCAN' : 'STOP SCAN') 
+                                    : (settings.language === 'fr' ? 'LANCER LE SCAN MASS' : 'START MASS SCAN')
+                                }
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -321,7 +343,9 @@ pseudo3..."
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <ShieldCheck size={16} color="var(--danger)" />
-                                <span className="caption" style={{ color: 'var(--danger)', fontWeight: '900' }}>AUTO-CLAIM (VOL PSEUDO)</span>
+                                <span className="caption" style={{ color: 'var(--danger)', fontWeight: '900' }}>
+                                    {settings.language === 'fr' ? 'AUTO-CLAIM (VOL PSEUDO)' : 'AUTO-CLAIM (USERNAME SNIPER)'}
+                                </span>
                             </div>
                             <div onClick={() => setAutoClaim(!autoClaim)} className={`nighty-toggle ${autoClaim ? 'active' : ''}`} style={{ '--accent': 'var(--danger)' } as any}>
                                 <div className="nighty-toggle-handle"></div>
@@ -333,7 +357,7 @@ pseudo3..."
                             <input 
                                 type={showPassword ? "text" : "password"}
                                 disabled={!autoClaim}
-                                placeholder="Mot de passe Discord (Requis pour claim)..." 
+                                placeholder={settings.language === 'fr' ? "Mot de passe Discord (Requis pour claim)..." : "Discord Password (Required for claim)..."} 
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
                                 style={{ width: '100%', padding: '14px 45px 14px 45px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border)', borderRadius: '12px', color: 'white', fontSize: '12px', outline: 'none' }}
@@ -347,14 +371,19 @@ pseudo3..."
                         </div>
                         <p style={{ fontSize: '9px', opacity: 0.4, marginTop: '10px', lineHeight: '1.4' }}>
                             <AlertCircle size={10} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
-                            {autoClaim ? "SÉCURITÉ : Ton pass est utilisé uniquement pour la requête PATCH locale." : "GARDER PSEUDO : Le bot ne modifiera pas ton profil."}
+                            {autoClaim 
+                                ? (settings.language === 'fr' ? "SÉCURITÉ : Ton pass est utilisé uniquement pour la requête PATCH locale." : "SECURITY: Your password is only used for the local PATCH request.")
+                                : (settings.language === 'fr' ? "GARDER PSEUDO : Le bot ne modifiera pas ton profil." : "SAFE MODE: The bot will not modify your profile.")
+                            }
                         </p>
                     </div>
 
                     {/* Live Radar Console */}
                     <div style={{ flex: 1, padding: '20px', background: 'rgba(0,0,0,0.4)', borderRadius: '18px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                            <span className="caption" style={{ fontSize: '9px', fontWeight: '900', opacity: 0.6 }}>RADAR DE DÉTECTION EN DIRECT</span>
+                            <span className="caption" style={{ fontSize: '9px', fontWeight: '900', opacity: 0.6 }}>
+                                {settings.language === 'fr' ? 'RADAR DE DÉTECTION EN DIRECT' : 'LIVE DETECTION RADAR'}
+                            </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 2s infinite' }}></div>
                                 <span style={{ fontSize: '9px', fontWeight: 'bold' }}>SCANNING</span>
@@ -366,7 +395,9 @@ pseudo3..."
                                 {statusList.length === 0 ? (
                                     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
                                         <Activity size={32} style={{ marginBottom: '10px' }} />
-                                        <span style={{ fontSize: '10px', fontWeight: 'bold' }}>AUCUNE ACTIVITÉ RADAR</span>
+                                        <span style={{ fontSize: '10px', fontWeight: 'bold' }}>
+                                            {settings.language === 'fr' ? 'AUCUNE ACTIVITÉ RADAR' : 'NO RADAR ACTIVITY'}
+                                        </span>
                                     </div>
                                 ) : (
                                     statusList.map((item, idx) => (
@@ -412,7 +443,7 @@ pseudo3..."
                                                 </div>
                                                 {item.status === 'ghost' && (
                                                     <span style={{ fontSize: '8px', color: '#ffa500', fontWeight: 'bold', opacity: 0.8 }}>
-                                                        Libération : {getCountdown(item.firstSeen)}
+                                                        {settings.language === 'fr' ? 'Libération :' : 'Release:'} {getCountdown(item.firstSeen)}
                                                     </span>
                                                 )}
                                             </div>
@@ -427,7 +458,7 @@ pseudo3..."
                                 onClick={() => setStatusList([])}
                                 style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: '9px', fontWeight: 'bold', marginTop: '10px', cursor: 'pointer', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '5px' }}
                             >
-                                <Trash2 size={10} /> VIDER LE RADAR
+                                <Trash2 size={10} /> {settings.language === 'fr' ? 'VIDER LE RADAR' : 'CLEAR RADAR'}
                             </button>
                         )}
                     </div>

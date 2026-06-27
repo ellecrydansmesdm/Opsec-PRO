@@ -44,7 +44,7 @@ export const Logs = () => {
               <h1 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em' }}>Console <span style={{ color: 'var(--accent)' }}>Système</span></h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.3 }}>
                  <Activity size={10} />
-                 <p className="caption" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>Quantum_Kernel_v1.2.0 active</p>
+                 <p className="caption" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>Opsec PRO Release — Kernel actif</p>
               </div>
            </div>
         </div>
@@ -119,15 +119,10 @@ export const Logs = () => {
         }}
       >
         {filteredLogs.map((l, i) => (
-          <div key={i} className={`log-line ${l.type}`} style={{ display: 'flex', alignItems: 'flex-start' }}>
-            <span style={{ opacity: 0.2, minWidth: '85px', userSelect: 'none' }}>[{l.time}]</span>
-            <span className="log-tag" style={{ 
-              background: l.type === 'error' ? 'rgba(255, 71, 87, 0.1)' : l.type === 'success' ? 'rgba(46, 213, 115, 0.1)' : 'rgba(52, 123, 255, 0.1)',
-              color: l.type === 'error' ? 'var(--danger)' : l.type === 'success' ? '#80ffab' : '#80e1ff'
-            }}>
-              {l.type.toUpperCase()}
-            </span>
-            <span style={{ flex: 1 }}>{l.msg}</span>
+          <div key={i} className={`log-line ${l.type}`} style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ opacity: 0.35, fontFamily: 'var(--font-tech)', fontSize: '10px', minWidth: '80px', userSelect: 'none' }}>[{l.time}]</span>
+            <span className="log-tag">{l.type.toUpperCase()}</span>
+            <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-main)', opacity: 0.9 }}>{l.msg}</span>
           </div>
         ))}
         {filteredLogs.length === 0 && (

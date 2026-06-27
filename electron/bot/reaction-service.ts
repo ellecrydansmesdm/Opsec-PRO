@@ -24,6 +24,9 @@ export class ReactionService {
                 
                 // 1. Initialize and Login if not ready
                 if (!client || !client.readyAt) {
+                    if (client) {
+                        try { client.destroy(); } catch (_) {}
+                    }
                     const ua = new UserAgent({ deviceCategory: 'desktop' }).toString();
                     client = new Client({
                         captchaSolver: this.solver,
@@ -32,7 +35,10 @@ export class ReactionService {
                     
                     // Promise wrapper for login with timeout
                     const loginPromise = new Promise(async (resolve, reject) => {
-                        const timeout = setTimeout(() => reject(new Error('Login Timeout (30s)')), 30000);
+                        const timeout = setTimeout(() => {
+                            try { client!.destroy(); } catch (_) {}
+                            reject(new Error('Login Timeout (30s)'));
+                        }, 30000);
                         try {
                             client!.once('ready', () => {
                                 clearTimeout(timeout);
@@ -41,6 +47,7 @@ export class ReactionService {
                             await client!.login(acc.token);
                         } catch (e) {
                             clearTimeout(timeout);
+                            try { client!.destroy(); } catch (_) {}
                             reject(e);
                         }
                     });

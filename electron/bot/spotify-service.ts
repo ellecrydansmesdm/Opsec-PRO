@@ -27,28 +27,38 @@ export class SpotifyService {
     private localTrackInfo: { artist: string; title: string; startTime: number } | null = null;
     private lyricsService: any;
 
+    private boundPresenceUpdate = (oldPresence: any, newPresence: any) => {
+        if (!this.isRunning || !newPresence) return;
+        if (newPresence.userId !== this.client.user?.id) return;
+        
+        const spotifyActivity = newPresence.activities.find((a: any) => 
+            (a.name === 'Spotify' && a.type === 'LISTENING') || 
+            (a.id && a.id.startsWith('spotify:'))
+        );
+        
+        if (spotifyActivity) {
+            this.lastSpotifyActivity = spotifyActivity;
+            
+            // Suppress "Listening to Spotify" from showing on the Discord profile
+            const cleanActivities = newPresence.activities.filter((a: any) => 
+                a.name !== 'Spotify' && !(a.id && a.id.startsWith('spotify:'))
+            );
+            
+            if (cleanActivities.length !== newPresence.activities.length) {
+                (this.client.user as any).setPresence({ activities: cleanActivities }).catch(() => {});
+            }
+            
+            this.syncLyrics();
+        }
+    };
+
     constructor(client: Client, botService?: any) {
         this.client = client;
         this.botService = botService;
         this.lyricsService = new (require('../services/lyrics-service').LyricsService)(require('electron').app.getPath('userData'));
         
         // Listen to own presence updates
-        this.client.on('presenceUpdate', (oldPresence, newPresence) => {
-            if (!this.isRunning || !newPresence) return;
-            if (newPresence.userId !== this.client.user?.id) return;
-            
-            const spotifyActivity = newPresence.activities.find(a => 
-                (a.name === 'Spotify' && a.type === 'LISTENING') || 
-                (a.id && a.id.startsWith('spotify:'))
-            );
-            
-            this.lastSpotifyActivity = spotifyActivity || null;
-            
-            if (spotifyActivity) {
-               // Trigger immediate sync on update
-               this.syncLyrics();
-            }
-        });
+        this.client.on('presenceUpdate', this.boundPresenceUpdate);
     }
 
     public setConfig(spDc: string | null) {
@@ -82,8 +92,13 @@ export class SpotifyService {
         
         // Reset status
         if (this.client.user) {
-            this.client.user.setPresence({ activities: [] });
+            this.botService.updateCustomStatus('', true);
         }
+    }
+
+    public destroy() {
+        this.stop();
+        this.client.off('presenceUpdate', this.boundPresenceUpdate);
     }
 
     private async runLoop() {
@@ -251,21 +266,15 @@ export class SpotifyService {
                 this.log('Musique arrêtée ou non détectée.', 'info');
                 this.currentTrackState = null;
                 this.lyrics = [];
-                // Clear custom status if we were lyrics syncing (regardless of logo)
-                const currentPresence = this.client.user.presence;
-                const currentStatus = currentPresence?.activities.find((a: any) => a.type === 'CUSTOM' || (a.type as any) === 4)?.state;
                 
-                // If the current status is one of our lyrics, clear it. 
-                // Since we don't have the icon anymore, we check if it's NOT an empty string.
-                if (currentStatus) {
-                    this.log('Nettoyage du statut personnalisé...', 'info');
+                // Clear custom status unconditionally
+                this.log('Nettoyage du statut personnalisé (Musique arrêtée)...', 'info');
+                this.botService.updateCustomStatus('', true);
+                
+                // On retente une fois après 2s pour être CERTAIN que Discord a pris le changement
+                setTimeout(() => {
                     this.botService.updateCustomStatus('', true);
-                    
-                    // On retente une fois après 2s pour être CERTAIN que Discord a pris le changement
-                    setTimeout(() => {
-                        this.botService.updateCustomStatus('', true);
-                    }, 2000);
-                }
+                }, 2000);
             }
             return;
         }

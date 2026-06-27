@@ -29,11 +29,10 @@ class ProfileCacheService {
     }
 
     public save() {
-        try {
-            fs.writeFileSync(this.cachePath, JSON.stringify(this.cache, null, 2));
-        } catch (e) {
-            console.error('[CACHE] Erreur sauvegarde cache:', e);
-        }
+        fs.promises.writeFile(this.cachePath, JSON.stringify(this.cache, null, 2))
+            .catch(e => {
+                console.error('[CACHE] Erreur sauvegarde cache:', e);
+            });
     }
 
     public get(id: string): CachedProfile | null {

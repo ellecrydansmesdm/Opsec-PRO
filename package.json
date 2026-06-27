@@ -1,15 +1,17 @@
 {
-  "name": "opsec-selfbot",
+  "name": "opsec-pro",
   "version": "1.2.2",
-  "description": "Opsec Pro — Dynamic Discord Automation & Protection Toolkit",
-  "repository": "https://github.com/Fahd3333/opsec-pro.git",
-  "main": "dist-electron/main.js",
+  "description": "Opsec PRO — Dynamic Discord Automation & Protection Toolkit",
+  "repository": "https://github.com/ellecrydansmesdm/opsec-pro.git",
+  "main": "dist-electron/main-loader.js",
   "scripts": {
     "dev": "vite",
     "build:client": "tsc && vite build",
-    "build:electron": "npx esbuild electron/main.ts --bundle --platform=node --packages=external --outfile=dist-electron/main.js && npx esbuild electron/preload.ts --bundle --platform=node --packages=external --outfile=dist-electron/preload.js",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron",
-    "dist": "npm run build && electron-builder",
+    "build:electron": "npx esbuild electron/main.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/main.js && npx esbuild electron/preload.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/preload.js",
+    "build": "echo Opsec PRO Release && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron",
+    "postbuild": "node scripts/compile-bytecode.js",
+    "obfuscate": "javascript-obfuscator dist-electron --output dist-electron --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75 && javascript-obfuscator dist/assets --output dist/assets --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75",
+    "dist": "npm run build && npm run obfuscate && node scripts/compile-bytecode.js --clean && electron-builder",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -20,6 +22,14 @@
     "directories": {
       "output": "release"
     },
+    "artifactName": "Opsec PRO Setup RELEASE.exe",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ellecrydansmesdm",
+        "repo": "opsec-pro"
+      }
+    ],
     "win": {
       "target": [
         "nsis"
@@ -27,7 +37,9 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*",
+      "dist-electron/main-loader.js",
+      "dist-electron/main.jsc",
+      "dist-electron/preload.js",
       "assets/**/*",
       "public/**/*",
       "node_modules/**/*",
@@ -40,36 +52,33 @@
     "opsec",
     "automation"
   ],
-  "author": "Fahd3333",
+  "author": "ellecrydansmesdm",
   "license": "ISC",
   "dependencies": {
+    "bytenode": "^1.6.0",
     "chalk": "^4.1.2",
     "cross-env": "^10.1.0",
-    "debug": "^4.4.3",
     "discord.js-selfbot-v13": "^3.7.1",
     "dotenv": "^17.4.0",
     "framer-motion": "^12.38.0",
-    "howler": "^2.2.4",
     "lucide-react": "^1.7.0",
     "proxy-agent": "^8.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.14.0",
     "recharts": "^3.8.1",
     "user-agents": "^2.1.27",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@types/howler": "^2.2.12",
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/react-router-dom": "^5.3.3",
     "@types/recharts": "^1.8.29",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "electron": "^41.1.1",
     "electron-builder": "^25.1.8",
+    "javascript-obfuscator": "^5.4.3",
     "rollup": "^4.60.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",

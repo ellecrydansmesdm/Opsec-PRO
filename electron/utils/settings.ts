@@ -1,13 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import { AppSettings } from '../../shared/types';
 
 export const defaultSettings: AppSettings = {
     autoLogin: false,
     silentMode: true,
     privateMode: false,
-    language: 'fr',
+    language: 'en',
     adminPurge: false,
     purgeDelay: 1000,
     themeBlur: 10,
@@ -21,8 +21,11 @@ export const defaultSettings: AppSettings = {
     cyberCursorEnabled: false,
     accounts: [],
     sentinelEnabled: false,
+    nitroStartDate: null,
+    boostStartDate: null,
     farmerConfig: {
       enabled: false,
+      selectedAccountIds: [],
       vocalHopper: {
         enabled: false,
         channelIds: [],
@@ -47,6 +50,36 @@ export const defaultSettings: AppSettings = {
 
 export const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.json');
 
+export function encryptToken(token: string): string {
+    if (!token) return '';
+    if (token.startsWith('enc:')) return token;
+    try {
+        if (!safeStorage.isEncryptionAvailable()) return token;
+        const encrypted = safeStorage.encryptString(token);
+        return 'enc:' + encrypted.toString('base64');
+    } catch (e) {
+        console.error('[safeStorage] Encryption error:', e);
+        return token;
+    }
+}
+
+export function decryptToken(encryptedToken: string): string {
+    if (!encryptedToken) return '';
+    if (!encryptedToken.startsWith('enc:')) return encryptedToken;
+    try {
+        if (!safeStorage.isEncryptionAvailable()) {
+            console.error('[safeStorage] Decryption is not available, cannot decrypt encrypted token');
+            return '';
+        }
+        const base64Data = encryptedToken.slice(4);
+        const buffer = Buffer.from(base64Data, 'base64');
+        return safeStorage.decryptString(buffer);
+    } catch (e) {
+        console.error('[safeStorage] Decryption error:', e);
+        return '';
+    }
+}
+
 export function getSettings(): AppSettings {
     const configPath = getConfigPath();
     if (!fs.existsSync(configPath)) {
@@ -67,7 +100,16 @@ export function getSettings(): AppSettings {
                 animations: []
             }];
             delete data.token;
-            fs.writeFileSync(configPath, JSON.stringify(data, null, 2));
+        }
+
+        // Decrypt all account tokens
+        if (data.accounts && Array.isArray(data.accounts)) {
+            data.accounts = data.accounts.map((acc: any) => {
+                if (acc && acc.token) {
+                    acc.token = decryptToken(acc.token);
+                }
+                return acc;
+            });
         }
 
         // Sync with defaults to ensure new keys exist
@@ -79,5 +121,21 @@ export function getSettings(): AppSettings {
 
 export function saveSettings(settings: AppSettings) {
     const configPath = getConfigPath();
-    fs.writeFileSync(configPath, JSON.stringify(settings, null, 2));
+    try {
+        const settingsCopy = JSON.parse(JSON.stringify(settings));
+        
+        // Encrypt all account tokens before saving
+        if (settingsCopy.accounts && Array.isArray(settingsCopy.accounts)) {
+            settingsCopy.accounts = settingsCopy.accounts.map((acc: any) => {
+                if (acc && acc.token) {
+                    acc.token = encryptToken(acc.token);
+                }
+                return acc;
+            });
+        }
+
+        fs.writeFileSync(configPath, JSON.stringify(settingsCopy, null, 2));
+    } catch (e) {
+        console.error('[settings] Save error:', e);
+    }
 }

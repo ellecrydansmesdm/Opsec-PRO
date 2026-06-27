@@ -29,11 +29,10 @@ export class GhostTracker {
     }
 
     private save() {
-        try {
-            fs.writeFileSync(this.filePath, JSON.stringify(this.ghosts, null, 2));
-        } catch (e) {
-            console.error('[GhostTracker] Error saving ghosts:', e);
-        }
+        fs.promises.writeFile(this.filePath, JSON.stringify(this.ghosts, null, 2))
+            .catch(e => {
+                console.error('[GhostTracker] Error saving ghosts:', e);
+            });
     }
 
     /**

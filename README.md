@@ -1,8 +1,8 @@
-# 🛡️ Opsec PRO — Stable v1.1.0
+# 🛡️ Opsec PRO — Stable RELEASE
 
 Opsec PRO est un **selfbot professionnel** haut de gamme conçu pour l'automatisation avancée et la gestion d'identité sur Discord. Alliant une interface futuriste "Glassmorphism" à des performances brutes, c'est l'outil ultime pour les power-users.
 
-![Version](https://img.shields.io/badge/version-1.1.0-62ff41?style=for-the-badge)
+![Release](https://img.shields.io/badge/release-RELEASE-62ff41?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge)
 
 ---
@@ -28,8 +28,8 @@ Opsec PRO est un **selfbot professionnel** haut de gamme conçu pour l'automatis
 ## 🚀 Installation & Lancement
 
 ### 📥 Version Stable (Utilisateurs)
-1.  Rendez-vous dans les **[Releases](https://github.com/Fahd3333/opsec-pro/releases)**.
-2.  Téléchargez `Opsec-PRO-Setup-1.1.0.exe`.
+1.  Rendez-vous dans les **[Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)**.
+2.  Téléchargez `Opsec PRO Setup RELEASE.exe`.
 3.  Lancez l'installation et connectez votre Token.
     *   *Note : Vos données sont chiffrées localement et ne transitent jamais par nos serveurs.*
 
@@ -58,6 +58,6 @@ Opsec PRO est un **selfbot professionnel** haut de gamme conçu pour l'automatis
 
 ## 👨‍💻 Crédits & Contact
 
-Développé avec passion par **Fahd**.
-*   **Discord ID** : `759026330003308625` (@ellecrydansmesdm)
-*   **Serveur** : [Discord Support](https://discord.gg/icey)
+Développé avec passion par **ellecrydansmesdm**.
+*   **Discord ID** : `1113108440575922236` (@ellecrydansmesdm)
+*   **Serveur** : [Discord Support](https://discord.gg/Q56drkYQb5)

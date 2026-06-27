@@ -9,11 +9,21 @@ interface DoubleChannelSelectorProps {
   allowMultiple?: boolean;
   selectServerOnly?: boolean;
   serverFilter?: (server: any) => boolean;
+  selectedAccountIds?: string[];
 }
 
 const ITEMS_PER_PAGE = 40;
 
-export const DoubleChannelSelector = ({ onSelect, onRemove, currentId, selectedIds = [], allowMultiple = false, selectServerOnly = false, serverFilter }: DoubleChannelSelectorProps) => {
+export const DoubleChannelSelector = ({ 
+  onSelect, 
+  onRemove, 
+  currentId, 
+  selectedIds = [], 
+  allowMultiple = false, 
+  selectServerOnly = false, 
+  serverFilter,
+  selectedAccountIds
+}: DoubleChannelSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [data, setData] = useState<{ servers: any[], dms: any[] }>({ servers: [], dms: [] });
@@ -40,7 +50,7 @@ export const DoubleChannelSelector = ({ onSelect, onRemove, currentId, selectedI
   const fetchChannels = async () => {
     setIsRefreshing(true);
     try {
-      const res = await window.electronAPI.getChannels();
+      const res = await window.electronAPI.getChannels(selectedAccountIds);
       if (res.success && res.data) {
           setData({
               servers: Array.isArray(res.data.servers) ? res.data.servers : [],
@@ -55,11 +65,13 @@ export const DoubleChannelSelector = ({ onSelect, onRemove, currentId, selectedI
     }
   };
 
+  const accountIdsKey = selectedAccountIds?.join(',') || '';
+
   useEffect(() => {
     if (isOpen) {
       fetchChannels();
     }
-  }, [isOpen]);
+  }, [isOpen, accountIdsKey]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

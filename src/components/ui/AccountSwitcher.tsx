@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useUserStore } from '@/store/useUserStore';
 import { User, Plus, X, UserCircle2, Check, ExternalLink, RefreshCw } from 'lucide-react';
 import { Tooltip } from './Tooltip';
+import { audioService } from '@/services/AudioService';
 
 interface AccountSwitcherProps {
     isModal?: boolean;
@@ -25,6 +26,9 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isModal, onClo
         const res = await window.electronAPI.selectAccount(id);
         
         if (res.success && res.data?.user) {
+            // Play account switch feedback sound
+            audioService.play('account_switch');
+            
             // Update the global user store immediately
             setUser(res.data.user);
             setAuthenticated(true);
@@ -38,6 +42,9 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isModal, onClo
             setIsOpen(false);
             if (onClose) onClose();
         } else {
+            // Play login failure sound
+            audioService.play('account_login_fail');
+            
             // Notify user of failure using native dialog
             await window.electronAPI.showMessageBox({
                 type: 'error',
@@ -120,8 +127,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isModal, onClo
                             )}
                         </div>
                         <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <p style={{ fontSize: '12px', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acc.username}</p>
-                            <p style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: '600' }}>#{acc.tag || 'Alt'}</p>
+                            <p style={{ fontSize: '12px', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>@{acc.username.split('#')[0]}</p>
                         </div>
                         {acc.id === user?.id ? (
                             <Check size={14} color="var(--accent)" strokeWidth={3} />

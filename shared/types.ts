@@ -27,10 +27,14 @@ export interface UserProfile {
   tag: string;
   avatarURL: string;
   bannerURL?: string;
+  bannerColor?: string;
+  accentColor?: number;
+  bio?: string;
   nitro: boolean;
   badges: string[];
   activities: UserActivity[];
   platform: string;
+  status: string;
   nitroExpiry?: string;
   uptime: number;
   guildsCount: number;
@@ -117,6 +121,8 @@ export interface AppSettings {
   lastActiveAccountId?: string;
   // Advanced Automation
   automationConfig?: AutomationConfig;
+  nitroStartDate?: string | null;
+  boostStartDate?: string | null;
 }
 
 export interface AutomationConfig {
@@ -139,10 +145,18 @@ export interface AutomationConfig {
     delay: number; // jitter delay in ms
   };
   capMonsterKey?: string;
+  twoCaptchaKey?: string;
+  antiCaptchaKey?: string;
+  capsolverKey?: string;
+  noCaptchaAIKey?: string;
+  proxyEnabled?: boolean;
+  proxyType?: 'http' | 'socks4' | 'socks5';
+  proxyList?: string[];
 }
 
 export interface FarmerConfig {
   enabled: boolean;
+  selectedAccountIds?: string[];
   vocalHopper: {
     enabled: boolean;
     channelIds: string[];
@@ -159,12 +173,19 @@ export interface FarmerConfig {
   startTime?: number;
 }
 
+export interface ResponderRule {
+  trigger: string;
+  replies: string[];
+  matchingMode?: 'contains' | 'exact' | 'regex';
+  action?: 'reply' | 'react' | 'both';
+  emoji?: string;
+  replyWithPing?: boolean;
+  delay?: number; // custom delay in seconds
+}
+
 export interface ResponderConfig {
   enabled: boolean;
   afkOnly: boolean; // Only reply if Farmer/Rotator is active
   dmOnly: boolean;
-  rules: {
-    trigger: string;
-    replies: string[];
-  }[];
+  rules: ResponderRule[];
 }

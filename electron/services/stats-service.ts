@@ -33,11 +33,10 @@ export class StatsService {
     }
 
     private save() {
-        try {
-            fs.writeFileSync(this.statsPath, JSON.stringify(this.stats, null, 2));
-        } catch (error) {
-            console.error('[STATS] Error saving stats:', error);
-        }
+        fs.promises.writeFile(this.statsPath, JSON.stringify(this.stats, null, 2))
+            .catch(error => {
+                console.error('[STATS] Error saving stats:', error);
+            });
     }
 
     public increment(userId: string) {

@@ -8,6 +8,8 @@ import nitroIcon from '@/assets/nitro.png';
 import braveryIcon from '@/assets/bravery.png';
 import { NotificationCard } from "@/components/ui/NotificationCard";
 import { UptimeCounter } from "@/components/ui/UptimeCounter";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { NitroBadge, BoostBadge } from "@/components/DiscordBadge";
 
 interface OverviewProps {
   onSwitch: () => void;
@@ -46,7 +48,7 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap'
       }}>
-        Hello, {user.displayName || user.username} 👋
+        {settings.language === 'fr' ? 'Bonjour' : 'Hello'}, {user.displayName || user.username} 👋
       </h1>
 
       <div className="dashboard-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', minHeight: 0 }}>
@@ -98,11 +100,22 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
                       textOverflow: 'ellipsis'
                     }} title={user?.displayName || user?.username}>{user?.displayName || user?.username}</h2>
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6, marginBottom: '4px' }}>{user?.username}#{user?.id?.slice(-4)}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.6, marginBottom: '4px' }}>@{user?.username?.split('#')[0]}</p>
                   
                   {/* Badges Container */}
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {user?.badges?.map((badge, i) => (
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {settings.nitroStartDate && (
+                      <NitroBadge startDate={settings.nitroStartDate} language={settings.language} />
+                    )}
+                    {settings.boostStartDate && (
+                      <BoostBadge startDate={settings.boostStartDate} language={settings.language} />
+                    )}
+                    {user?.badges?.filter(badge => {
+                      const bLower = badge.toLowerCase();
+                      if (bLower === 'nitro' && settings.nitroStartDate) return false;
+                      if ((bLower === 'boost' || bLower === 'booster') && settings.boostStartDate) return false;
+                      return true;
+                    }).map((badge, i) => (
                       <div key={i} className="discord-badge-mini" title={badge.toUpperCase()}>
                         {badge === 'nitro' ? (
                           <img src={nitroIcon} alt="nitro" style={{ width: '20px', height: '20px' }} />
@@ -128,8 +141,12 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
 
               {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
-                 <button onClick={onSwitch} className="btn-primary" style={{ padding: '8px 16px', fontSize: '11px' }}>Switch Account</button>
-                 <button onClick={onAdd} className="btn-primary" style={{ padding: '8px 16px', fontSize: '11px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', boxShadow: 'none' }}>Add new</button>
+                 <button onClick={onSwitch} className="btn-primary" style={{ padding: '8px 16px', fontSize: '11px' }}>
+                   {settings.language === 'fr' ? 'Changer de Compte' : 'Switch Account'}
+                 </button>
+                 <button onClick={onAdd} className="btn-primary" style={{ padding: '8px 16px', fontSize: '11px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', boxShadow: 'none' }}>
+                   {settings.language === 'fr' ? 'Ajouter' : 'Add new'}
+                 </button>
               </div>
             </div>
 
@@ -139,21 +156,25 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
               {/* IDs & Nitro (Left) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <div>
-                  <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>User ID</p>
+                  <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>
+                    {settings.language === 'fr' ? 'ID Utilisateur' : 'User ID'}
+                  </p>
                   <p style={{ fontSize: '12px', color: 'white', fontWeight: '600', opacity: 0.8 }}>{user?.id}</p>
                 </div>
                 <div>
-                  <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>Nitro status</p>
+                  <p className="caption" style={{ fontSize: '9px', marginBottom: '6px', opacity: 0.4 }}>
+                    {settings.language === 'fr' ? 'Statut Nitro' : 'Nitro status'}
+                  </p>
                   <p style={{ fontSize: '13px', color: user?.nitro ? 'var(--success)' : 'var(--text-dim)', fontWeight: '800' }}>
-                    {user?.nitroExpiry || (user?.nitro ? 'Active' : 'Inactive')}
+                    {user?.nitroExpiry || (user?.nitro ? (settings.language === 'fr' ? 'Actif' : 'Active') : (settings.language === 'fr' ? 'Inactif' : 'Inactive'))}
                   </p>
                 </div>
               </div>
 
               {/* StatCircles (Right) */}
               <div style={{ display: 'flex', gap: '32px' }}>
-                <StatCircle count={user?.guildsCount || 0} max={100} label="SERVERS" size={120} fontSize="28px" strokeWidth={8} />
-                <StatCircle count={user?.friendsCount || 0} max={1000} label="FRIENDS" size={120} fontSize="28px" strokeWidth={8} />
+                <StatCircle count={user?.guildsCount || 0} max={100} label={settings.language === 'fr' ? 'SERVEURS' : 'SERVERS'} size={120} fontSize="28px" strokeWidth={8} />
+                <StatCircle count={user?.friendsCount || 0} max={1000} label={settings.language === 'fr' ? 'AMIS' : 'FRIENDS'} size={120} fontSize="28px" strokeWidth={8} />
               </div>
 
             </div>
@@ -161,18 +182,17 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
 
           {/* Unified Bottom Info Card */}
           <div className="glass-card" style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0px', flexShrink: 0 }}>
-             {/* Section 1: Version */}
+             {/* Section 1: RELEASE */}
              <div style={{ paddingRight: '15px' }}>
                 <p className="caption" style={{ marginBottom: '10px', fontSize: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ShieldCheck size={10} color="var(--accent)" /> Version
+                  <ShieldCheck size={10} color="var(--accent)" /> RELEASE
                 </p>
-                <h2 style={{ fontSize: '20px', marginBottom: '2px' }}>v1.2.1</h2>
+                <h2 style={{ fontSize: '20px', marginBottom: '2px' }}>RELEASE</h2>
              </div>
-
              {/* Section 2: Commands Used */}
              <div style={{ padding: '0 15px', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="caption" style={{ marginBottom: '10px', fontSize: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                   <Cpu size={10} /> Commands used
+                   <Cpu size={10} /> {settings.language === 'fr' ? 'Commandes utilisées' : 'Commands used'}
                 </p>
                 <h2 style={{ fontSize: '20px', marginBottom: '2px' }}>{commandsCount}</h2>
              </div>
@@ -180,13 +200,21 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
              {/* Section 3: Toggles (Silent & Private) */}
              <div style={{ padding: '0 15px', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <p className="caption" style={{ fontSize: '8px', opacity: 0.5 }}>SILENT PROTECTION</p>
+                   <Tooltip text={settings.language === 'fr' ? "Empêche le bot d'écrire des messages de confirmation de commande dans les salons pour éviter la détection." : "Prevents the selfbot from writing command confirmation messages in channels to avoid detection."}>
+                      <p className="caption" style={{ fontSize: '8px', opacity: 0.5, cursor: 'help', textDecoration: 'underline dotted rgba(255,255,255,0.3)' }}>
+                         {settings.language === 'fr' ? 'PROTECTION SILENCIEUSE' : 'SILENT PROTECTION'}
+                      </p>
+                   </Tooltip>
                    <div onClick={() => updateSetting('silentMode', !settings.silentMode)} className={`nighty-toggle ${settings.silentMode ? 'active' : ''}`} style={{ transform: 'scale(0.8)' }}>
                       <div className="nighty-toggle-handle"></div>
                    </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <p className="caption" style={{ fontSize: '8px', opacity: 0.5 }}>PRIVATE MODE</p>
+                   <Tooltip text={settings.language === 'fr' ? "Sanitise automatiquement vos statuts, bios et activités pour effacer toute mention de 'Opsec Pro'." : "Automatically sanitizes your status, bio, and activities to remove any mention of 'Opsec Pro'."}>
+                      <p className="caption" style={{ fontSize: '8px', opacity: 0.5, cursor: 'help', textDecoration: 'underline dotted rgba(255,255,255,0.3)' }}>
+                         {settings.language === 'fr' ? 'MODE PRIVÉ' : 'PRIVATE MODE'}
+                      </p>
+                   </Tooltip>
                    <div onClick={() => updateSetting('privateMode', !settings.privateMode)} className={`nighty-toggle ${settings.privateMode ? 'active' : ''}`} style={{ transform: 'scale(0.8)' }}>
                       <div className="nighty-toggle-handle"></div>
                    </div>
@@ -205,16 +233,22 @@ export const Overview = ({ onSwitch, onAdd }: OverviewProps) => {
           <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', padding: '24px', height: '100%', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={16} color="var(--accent)" /> Notification Center
+                <Activity size={16} color="var(--accent)" /> {settings.language === 'fr' ? 'Centre de Notifications' : 'Notification Center'}
               </h3>
-              <ExternalLink size={16} style={{ opacity: 0.3, cursor: 'pointer' }} />
+              <ExternalLink 
+                size={16} 
+                style={{ opacity: 0.3, cursor: 'pointer' }} 
+                onClick={() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'Logs' }))} 
+              />
             </div>
             
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="custom-scrollbar">
               {logs.length === 0 ? (
                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.1 }}>
                   <Activity size={40} strokeWidth={1} />
-                  <p className="caption" style={{ marginTop: '15px', fontSize: '9px' }}>No Activity Recorded</p>
+                  <p className="caption" style={{ marginTop: '15px', fontSize: '9px' }}>
+                    {settings.language === 'fr' ? 'Aucune activité enregistrée' : 'No Activity Recorded'}
+                  </p>
                 </div>
               ) : (
                 logs.map((log, index) => <NotificationCard key={index} log={log} />)

@@ -27,9 +27,17 @@ export class ProfileRotator {
     private nextTickTime: number = 0;
     private currentHouseIndex: number = 0;
 
-    constructor(client: Client, userDataPath: string, logCallback: (msg: string, type: 'info' | 'success' | 'error' | 'warning') => void) {
+    private privateModeGetter: () => boolean;
+
+    constructor(
+        client: Client, 
+        userDataPath: string, 
+        logCallback: (msg: string, type: 'info' | 'success' | 'error' | 'warning') => void,
+        privateModeGetter: () => boolean
+    ) {
         this.client = client;
         this.logCallback = logCallback;
+        this.privateModeGetter = privateModeGetter;
         this.statePath = path.join(userDataPath, 'rotator_state.json');
         this.loadState();
     }
@@ -49,11 +57,10 @@ export class ProfileRotator {
     }
 
     private saveState() {
-        try {
-            fs.writeFileSync(this.statePath, JSON.stringify(this.state), 'utf-8');
-        } catch (e) {
-            console.error('[ROTATOR] Erreur sauvegarde state:', e);
-        }
+        fs.promises.writeFile(this.statePath, JSON.stringify(this.state), 'utf-8')
+            .catch(e => {
+                console.error('[ROTATOR] Erreur sauvegarde state:', e);
+            });
     }
 
     public setClient(newClient: Client) {
@@ -150,6 +157,14 @@ export class ProfileRotator {
         }, 1000);
     }
 
+    private sanitize(text: string): string {
+        if (!text) return '';
+        if (this.privateModeGetter && this.privateModeGetter()) {
+            return text.replace(/opsec\s*pro/gi, '');
+        }
+        return text;
+    }
+
     private resolveVariables(text: string): string {
         if (!text) return '';
         const now = new Date();
@@ -162,7 +177,7 @@ export class ProfileRotator {
             resolved = resolved.replace(/{messages_today}/g, this.config.stats.messagesToday.toString());
             resolved = resolved.replace(/{total_messages}/g, this.config.stats.totalMessages.toString());
         }
-        return resolved;
+        return this.sanitize(resolved);
     }
 
     private async run() {
@@ -174,8 +189,13 @@ export class ProfileRotator {
             this.logCallback(`[ROTATOR PRO ERROR] ${e.message}`, 'error');
         }
 
-        const jitter = (Math.random() * 10 - 5) * 1000;
-        const delay = Math.max(2000, (this.config.interval * 1000) + jitter);
+        let jitter = 0;
+        if (this.config.interval >= 10) {
+            jitter = (Math.random() * 10 - 5) * 1000;
+        } else if (this.config.interval > 0) {
+            jitter = (Math.random() * 0.1 - 0.05) * (this.config.interval * 1000);
+        }
+        const delay = Math.max(50, (this.config.interval * 1000) + jitter);
         
         this.nextTickTime = Date.now() + delay;
         this.timer = setTimeout(() => this.run(), delay);
@@ -229,7 +249,9 @@ export class ProfileRotator {
                 const nameText = cfg.usernames[cfg.currentUsernameIndex % cfg.usernames.length];
                 const resolved = this.resolveVariables(nameText);
                 try {
-                    await (this.client as any).settings.setGlobalName(resolved);
+                    await (this.client as any).api.users['@me'].patch({
+                        data: { global_name: resolved }
+                    });
                     this.logCallback(`[IDENTITY] Pseudo → ${resolved}`, 'info');
                     changedSomething = true;
                     cfg.pausedUsernameUntil = now + (30 * 60 * 1000); // 30 min cooldown
@@ -247,21 +269,37 @@ export class ProfileRotator {
         if (cfg.enabledSections.clanTag && cfg.clanTags && cfg.clanTags.length > 0) {
             const guildId = cfg.clanTags[cfg.currentClanTagIndex % cfg.clanTags.length];
             try {
-                // Method: Priority on Dedicated Clan Endpoint (New Clans feature)
-                await (this.client as any).api.guilds(guildId).clan.member.primary.post();
-                
+                // Method A: Dedicated Clan Endpoint (PUT /users/@me/clan)
+                await (this.client as any).api.users['@me'].clan.put({
+                    data: {
+                        identity_guild_id: guildId,
+                        identity_enabled: true
+                    }
+                });
                 this.logCallback(`[IDENTITY] Clan Tag -> Change vers ${guildId}`, 'success');
                 changedSomething = true;
             } catch (e: any) {
-                // Fallback to Method A: User Settings (Old Primary Guild Tag)
                 try {
-                    await (this.client as any).api.users['@me'].settings.patch({ 
-                        data: { primary_guild_id: guildId } 
+                    // Method B: Newer Clan Endpoint (POST /users/@me/clan/identity)
+                    await (this.client as any).api.users['@me'].clan.identity.post({
+                        data: {
+                            identity_guild_id: guildId,
+                            identity_enabled: true
+                        }
                     });
-                    this.logCallback(`[IDENTITY] Clan Tag (Legacy) -> Change vers ${guildId}`, 'success');
+                    this.logCallback(`[IDENTITY] Clan Tag (V2) -> Change vers ${guildId}`, 'success');
                     changedSomething = true;
-                } catch (err: any) {
-                    this.logCallback(`[IDENTITY ERROR] Echec Clan Tag : ${err.message}`, 'error');
+                } catch (e2: any) {
+                    // Fallback to Method C: User Settings (Old Primary Guild Tag)
+                    try {
+                        await (this.client as any).api.users['@me'].settings.patch({ 
+                            data: { primary_guild_id: guildId } 
+                        });
+                        this.logCallback(`[IDENTITY] Clan Tag (Legacy) -> Change vers ${guildId}`, 'success');
+                        changedSomething = true;
+                    } catch (err: any) {
+                        this.logCallback(`[IDENTITY ERROR] Echec Clan Tag : ${err.message || e.message}`, 'error');
+                    }
                 }
             }
             cfg.currentClanTagIndex = (cfg.currentClanTagIndex + 1) % cfg.clanTags.length;
@@ -286,14 +324,30 @@ export class ProfileRotator {
                 if (rpc.showTimestamp) presence.timestamps = { start: Date.now() };
                 const appId = rpc.applicationId || "0";
                 
-                this.client.user.setActivity(presence.name, {
+                const existingCustom = this.client.user.presence?.activities.find((a: any) => 
+                    a.type === 'CUSTOM' || a.name === 'Custom Status' || a.id === 'custom'
+                );
+
+                const activities: any[] = [{
+                    name: presence.name,
                     type: presence.type,
                     details: presence.details,
                     state: presence.state,
-                    assets: presence.assets,
+                    assets: {
+                        largeImage: presence.assets.large_image,
+                        largeText: presence.assets.large_text,
+                        smallImage: presence.assets.small_image,
+                        smallText: presence.assets.small_text
+                    },
                     timestamps: presence.timestamps,
                     applicationId: appId !== "0" ? appId : undefined
-                } as any);
+                }];
+
+                if (existingCustom) {
+                    activities.push(existingCustom);
+                }
+
+                (this.client.user as any).setPresence({ activities });
                 changedSomething = true;
             } catch (e) {}
             cfg.currentActivityIndex = (cfg.currentActivityIndex + 1) % cfg.customRPCs.length;

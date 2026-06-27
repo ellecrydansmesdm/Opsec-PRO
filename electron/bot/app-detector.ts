@@ -17,7 +17,6 @@ const APP_DATABASE: DetectedApp[] = [
     { name: 'Counter-Strike 2', processName: 'cs2.exe', type: 'game', applicationId: '740706442113155143' },
     { name: 'Minecraft', processName: 'javaw.exe', type: 'game', applicationId: '416922332150333440' },
     { name: 'Roblox', processName: 'RobloxPlayerBeta.exe', type: 'game', applicationId: '435443372270026752' },
-    { name: 'Spotify', processName: 'Spotify.exe', type: 'media', applicationId: '232924992212828160' },
     { name: 'Google Chrome', processName: 'chrome.exe', type: 'app', applicationId: '584443105432371200' },
     { name: 'IntelliJ IDEA', processName: 'idea64.exe', type: 'app', applicationId: '382946281242361858' },
     { name: 'Steam', processName: 'steam.exe', type: 'app', applicationId: '282213813894742016' }

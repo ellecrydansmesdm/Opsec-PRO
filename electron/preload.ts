@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   startPurge: (data: { channelId: string; amount: number; purgeAll: boolean; delay: number }) => ipcRenderer.invoke('start-purge', data),
   stopPurge: () => ipcRenderer.invoke('stop-purge'),
-  getChannels: () => ipcRenderer.invoke('get-channels'),
+  getChannels: (accountIds?: string[]) => ipcRenderer.invoke('get-channels', accountIds),
   resolveIds: (ids: string[]) => ipcRenderer.invoke('resolve-ids', ids),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
@@ -40,12 +40,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAccount: (id: string | number) => ipcRenderer.invoke('remove-account', id),
   leaveAllServers: (ids?: string[]) => ipcRenderer.invoke('leave-all-servers', ids),
   selectFile: () => ipcRenderer.invoke('select-file'),
-  dmAllFriends: (data: { message: string }) => ipcRenderer.invoke('dm-all-friends', data),
-  startSpam: (data: { channelIds: string[]; texts: string[]; delay: number; jitter?: boolean; maxMessages?: number; proxies?: string[] }) => ipcRenderer.invoke('start-spam', data),
+  dmAllFriends: (data: { message: string; target?: 'all' | 'friends' | 'groups'; delay?: number; pauseInterval?: number; pauseDuration?: number }) => ipcRenderer.invoke('dm-all-friends', data),
+  startSpam: (data: {
+    channelIds: string[];
+    texts: string[];
+    delay: number;
+    jitter?: boolean;
+    maxMessages?: number;
+    proxies?: string[];
+    accounts?: any[];
+    replyMode?: boolean;
+    uiPhrases?: string;
+    uiSelectedTargets?: any[];
+    uiSelectedAccounts?: string[];
+    uiBigTextMode?: boolean;
+    uiSniperMode?: boolean;
+    uiSniperId?: string;
+    uiSpamSingleMessage?: boolean;
+  }) => ipcRenderer.invoke('start-spam', data),
   stopSpam: () => ipcRenderer.invoke('stop-spam'),
+  getSpamStatus: () => ipcRenderer.invoke('get-spam-status'),
   stopDMAll: () => ipcRenderer.invoke('stop-dm-all'),
   stopSanitizer: () => ipcRenderer.invoke('stop-sanitizer'),
-  setVoiceStalker: (data: { userId: string | null }) => ipcRenderer.invoke('set-voice-stalker', data),
   loginViaDiscord: () => ipcRenderer.invoke('login-via-discord'),
   toggleSpotifyLyrics: (data: { enabled: boolean; cookie?: string }) => ipcRenderer.invoke('toggle-spotify-lyrics', data),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
@@ -55,7 +71,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCommandsCount: (userId: string) => ipcRenderer.invoke('get-commands-count', userId),
   incrementCommand: (userId: string) => ipcRenderer.invoke('increment-command', userId),
   jumpToMessage: (messageId: string) => ipcRenderer.invoke('jump-to-message', messageId),
-
+  
   // Profile Rotator PRO
   toggleRotator: (config: any) => ipcRenderer.invoke('toggle-animation', config),
   forceRotatorUpdate: () => ipcRenderer.invoke('force-rotator-update'),
@@ -69,8 +85,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   wallpaperUpload: (filePath?: string) => ipcRenderer.invoke('wallpaper:upload', filePath),
   wallpaperReset: () => ipcRenderer.invoke('wallpaper:reset'),
   
-  // Dev Credits
-  getDevAvatar: () => ipcRenderer.invoke('get-dev-avatar'),
+  // Cursor Import (auto-resize)
+  cursorImport: () => ipcRenderer.invoke('cursor:import'),
+  
+
 
   // V1.2.0 Automation & Farmer
   getFarmerStatus: () => ipcRenderer.invoke('get-farmer-status'),
@@ -78,9 +96,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearLogs: () => ipcRenderer.invoke('clear-logs'),
 
   // V1.2.1 Pomelo Sniper
-  checkPomelo: (username: string) => ipcRenderer.invoke('pomelo:check', username),
+  checkPomelo: (data: { username: string, botToken?: string }) => ipcRenderer.invoke('pomelo:check', data),
   claimPomelo: (data: { username: string, password?: string }) => ipcRenderer.invoke('pomelo:claim', data),
-  startPomeloBatch: (data: { usernames: string[], delay?: number, autoClaim?: boolean, password?: string }) => ipcRenderer.invoke('pomelo:start-batch', data),
+  startPomeloBatch: (data: { usernames: string[], delay?: number, autoClaim?: boolean, password?: string, botToken?: string, generator?: string }) => ipcRenderer.invoke('pomelo:start-batch', data),
   stopPomeloBatch: () => ipcRenderer.invoke('pomelo:stop-batch'),
   onPomeloUpdate: (callback: (data: any) => void) => {
     const listener = (_: any, data: any) => callback(data);
@@ -94,8 +112,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Group Pro & Sentinel Duo
-  startGroupRename: (data: { channelId: string, names: string[], delay: number }) => ipcRenderer.invoke('group:start-rename', data),
+  startGroupRename: (data: { channelId: string, names: string[], delay: number, accounts: any[] }) => ipcRenderer.invoke('group:start-rename', data),
   stopGroupRename: () => ipcRenderer.invoke('group:stop-rename'),
+  groupRenameStatus: () => ipcRenderer.invoke('group:rename-status'),
   startSentinel: (data: { partnerToken: string, groupIds: string[], groupLinks?: {[key: string]: string} }) => ipcRenderer.invoke('sentinel:start', data),
   stopSentinel: () => ipcRenderer.invoke('sentinel:stop'),
   sentinelStatus: () => ipcRenderer.invoke('sentinel:status'),
@@ -107,4 +126,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startAutoVote: (data: { messageId: string, channelId: string, emoji: string, accounts: any[] }) => ipcRenderer.invoke('start-auto-vote', data),
   selectTokenFile: () => ipcRenderer.invoke('select-token-file'),
   checkCapMonsterKey: (key: string) => ipcRenderer.invoke('capmonster:check-key', key),
+  checkTwoCaptchaKey: (key: string) => ipcRenderer.invoke('2captcha:check-key', key),
+  checkAntiCaptchaKey: (key: string) => ipcRenderer.invoke('anticaptcha:check-key', key),
+  checkCapsolverKey: (key: string) => ipcRenderer.invoke('capsolver:check-key', key),
+  checkNoCaptchaAIKey: (key: string) => ipcRenderer.invoke('nocaptchaai:check-key', key),
+  getDiagnostics: () => ipcRenderer.invoke('get-diagnostics'),
+  autoJoinServers: (data: { inviteLink: string; delay?: number }) => ipcRenderer.invoke('auto-join-servers', data),
+  stopAutoJoin: () => ipcRenderer.invoke('stop-auto-join'),
+  getAutoJoinStatus: () => ipcRenderer.invoke('get-auto-join-status'),
 });

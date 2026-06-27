@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { X, Search, Check, Users, MessageSquare, Globe, ChevronDown, RefreshCw } from 'lucide-react';
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface SelectionItem {
   id: string;
@@ -26,6 +27,9 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
   title,
   type 
 }) => {
+  const { settings } = useSettingsStore();
+  const isFr = settings.language === 'fr';
+
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [silentLeave, setSilentLeave] = useState(false);
@@ -106,7 +110,9 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
             </div>
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: '800' }}>{title}</h2>
-              <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{items.length} éléments trouvés</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                {isFr ? `${items.length} éléments trouvés` : `${items.length} items found`}
+              </p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
@@ -120,7 +126,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
             <Search size={16} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             <input 
               type="text" 
-              placeholder="Rechercher par nom ou ID..." 
+              placeholder={isFr ? "Rechercher par nom ou ID..." : "Search by name or ID..."}
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ 
@@ -159,12 +165,14 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
                 }}>
                   {allSelected && <Check size={12} color="white" />}
                 </div>
-                {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                {allSelected 
+                  ? (isFr ? 'Tout désélectionner' : 'Deselect All') 
+                  : (isFr ? 'Tout sélectionner' : 'Select All')}
               </button>
               
               {selectedIds.size > 0 && (
                 <span className="caption" style={{ color: 'var(--accent)', fontSize: '9px' }}>
-                  {selectedIds.size} SÉLECTIONNÉS
+                  {isFr ? `${selectedIds.size} SÉLECTIONNÉS` : `${selectedIds.size} SELECTED`}
                 </span>
               )}
           </div>
@@ -230,14 +238,16 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
             {visibleLimit < filteredItems.length && (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                  <RefreshCw size={12} className="animate-spin" />
-                 Chargement de la suite...
+                 {isFr ? 'Chargement de la suite...' : 'Loading more...'}
               </div>
             )}
 
             {filteredItems.length === 0 && (
               <div style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.3 }}>
                  <Search size={40} style={{ margin: '0 auto 15px' }} />
-                 <p style={{ fontSize: '14px', fontWeight: '700' }}>Aucun résultat pour "{search}"</p>
+                 <p style={{ fontSize: '14px', fontWeight: '700' }}>
+                   {isFr ? `Aucun résultat pour "${search}"` : `No results for "${search}"`}
+                 </p>
               </div>
             )}
           </div>
@@ -275,7 +285,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
                 {silentLeave && <Check size={12} color="white" />}
               </div>
               <span style={{ fontSize: '13px', fontWeight: '700', color: silentLeave ? 'white' : 'var(--text-dim)' }}>
-                Quitter sans en informer les autres membres
+                {isFr ? 'Quitter sans en informer les autres membres' : 'Leave without notifying other members'}
               </span>
             </div>
           )}
@@ -286,7 +296,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
               className="btn-secondary"
               style={{ flex: 1, height: '50px', borderRadius: '14px' }}
             >
-              Annuler
+              {isFr ? 'Annuler' : 'Cancel'}
             </button>
             <button 
               onClick={() => onConfirm(Array.from(selectedIds), silentLeave)}
@@ -300,7 +310,7 @@ export const SelectionModal: React.FC<SelectionModalProps> = ({
                 fontSize: '13px'
               }}
             >
-              Confirmer l'action ({selectedIds.size})
+              {isFr ? `Confirmer l'action (${selectedIds.size})` : `Confirm action (${selectedIds.size})`}
             </button>
           </div>
         </div>

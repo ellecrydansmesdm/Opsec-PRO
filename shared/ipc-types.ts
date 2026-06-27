@@ -56,10 +56,6 @@ export interface IPCTypes {
     params: void;
     response: IPCResponse<void>;
   };
-  'set-voice-stalker': {
-    params: { userId: string | null };
-    response: IPCResponse<void>;
-  };
   'login-via-discord': {
     params: void;
     response: IPCResponse<{ token: string }>;

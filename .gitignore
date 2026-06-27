@@ -8,3 +8,4 @@ opsec_config.json
 *.log
 .DS_Store
 out
+scratch/

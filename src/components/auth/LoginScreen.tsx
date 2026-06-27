@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, RefreshCw, Globe, X, ChevronRight } from 'lucide-react';
 import { UserProfile } from '../../../shared/types';
 import logo from '@/assets/icon.png';
+import { audioService } from '@/services/AudioService';
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile) => void;
@@ -17,6 +18,39 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processingResults, setProcessingResults] = useState<{tag?: string, status: string, color: string}[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const res = await window.electronAPI.getAccounts();
+        if (res.success && Array.isArray(res.data)) {
+          setAccounts(res.data);
+        }
+      } catch (e) {
+        console.error("Error loading accounts:", e);
+      }
+    };
+    fetchAccounts();
+  }, []);
+
+  const handleSelectAccount = async (accId: string) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await window.electronAPI.selectAccount(accId) as any;
+      if (res.success && res.data?.user) {
+        onLogin(res.data.user);
+      } else {
+        audioService.play('account_login_fail');
+        setError(res.error || 'Failed to select account');
+      }
+    } catch (e: any) {
+      audioService.play('account_login_fail');
+      setError(e.message || 'Error selecting account');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,18 +60,21 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
         const response = await window.electronAPI.loginAttempt({ token, rememberMe }) as any;
         setLoading(false);
         if (response.success && response.user) onLogin(response.user);
-        else setError(response.error || response.message || 'Invalid Matrix Token.');
+        else {
+          audioService.play('account_login_fail');
+          setError(response.error || response.message || 'Invalid Matrix Token.');
+        }
     } else {
         handleBulkSubmit();
     }
   };
 
   const handleBulkSubmit = async () => {
-    const tokens = bulkTokens.split('\n')
-        .map(t => t.trim().replace(/"/g, ''))
-        .filter(t => t.length > 10);
+    const tokenRegex = /(mfa\.[\w-]{84,95}|[\w-]{24,28}\.[\w-]{5,8}\.[\w-]{27,65})/g;
+    const matches = bulkTokens.match(tokenRegex) || [];
+    const tokens = Array.from(new Set(matches));
 
-    if (!tokens.length) return setError('No valid tokens detected in buffer.');
+    if (!tokens.length) return setError('No valid Discord tokens detected in input (auto-extracted from raw dumps).');
     
     setLoading(true);
     setError(null);
@@ -197,45 +234,131 @@ export const LoginScreen = ({ onLogin, isModal, onClose }: LoginScreenProps) => 
         
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {mode === 'single' ? (
-              <div style={{ position: 'relative' }}>
-                <input 
-                  type="password" 
-                  value={token} 
-                  onChange={(e) => setToken(e.target.value)} 
-                  placeholder="MATRIX TOKEN" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '16px 20px', 
-                    background: 'rgba(0, 0, 0, 0.4)', 
-                    border: '1px solid rgba(255, 255, 255, 0.05)', 
-                    color: 'white', 
-                    fontSize: '13px', 
-                    letterSpacing: '1px',
-                    outline: 'none',
-                    fontFamily: 'monospace'
-                  }} 
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {accounts.length > 0 && (
+                  <div>
+                    <label style={{ 
+                      fontSize: '9px', 
+                      color: 'var(--accent)', 
+                      fontWeight: '900', 
+                      letterSpacing: '2px', 
+                      display: 'block', 
+                      marginBottom: '12px',
+                      textTransform: 'uppercase'
+                    }}>
+                      SAVED SESSIONS ({accounts.length})
+                    </label>
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px', 
+                      maxHeight: '180px', 
+                      overflowY: 'auto',
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      padding: '10px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '4px'
+                    }} className="custom-scrollbar">
+                      {accounts.map((acc: any) => (
+                        <div 
+                          key={acc.id}
+                          onClick={() => handleSelectAccount(acc.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            borderRadius: '2px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(0, 212, 255, 0.05)';
+                            e.currentTarget.style.borderColor = 'rgba(0, 212, 255, 0.3)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ 
+                              width: '24px', 
+                              height: '24px', 
+                              borderRadius: '50%', 
+                              background: 'rgba(255,255,255,0.05)', 
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden'
+                            }}>
+                              {acc.avatarURL ? (
+                                <img src={acc.avatarURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span style={{ fontSize: '9px', fontWeight: 'bold' }}>{acc.username?.slice(0,2).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '700', color: 'white' }}>{acc.username}</span>
+                              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)' }}>{acc.tag || 'Token'}</span>
+                            </div>
+                          </div>
+                          <ChevronRight size={14} style={{ opacity: 0.5 }} />
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', gap: '15px' }}>
+                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+                      <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', fontWeight: '900' }}>OR CONNECT NEW</span>
+                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="password" 
+                    value={token} 
+                    onChange={(e) => setToken(e.target.value)} 
+                    placeholder="MATRIX TOKEN" 
+                    style={{ 
+                      width: '100%', 
+                      padding: '16px 20px', 
+                      background: 'rgba(0, 0, 0, 0.4)', 
+                      border: '1px solid rgba(255, 255, 255, 0.05)', 
+                      color: 'white', 
+                      fontSize: '13px', 
+                      letterSpacing: '1px',
+                      outline: 'none',
+                      fontFamily: 'monospace'
+                    }} 
+                  />
+                </div>
               </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-               <textarea 
-                  value={bulkTokens}
-                  onChange={(e) => setBulkTokens(e.target.value)}
-                  placeholder="PASTE TOKENS HERE (ONE PER LINE)"
-                  rows={6}
-                  style={{ 
-                    width: '100%', 
-                    padding: '16px 20px', 
-                    background: 'rgba(0,0,0,0.4)', 
-                    border: '1px solid rgba(255,255,255,0.05)', 
-                    color: 'var(--accent)', 
-                    fontSize: '11px', 
-                    outline: 'none',
-                    fontFamily: 'monospace',
-                    resize: 'none',
-                    scrollbarWidth: 'thin'
-                  }}
-               />
+                <textarea 
+                   value={bulkTokens}
+                   onChange={(e) => setBulkTokens(e.target.value)}
+                   placeholder="PASTE TOKENS OR RAW DB DUMPS (email:pass:token) HERE - TOKENS WILL BE AUTO-EXTRACTED"
+                   rows={6}
+                   style={{ 
+                     width: '100%', 
+                     padding: '16px 20px', 
+                     background: 'rgba(0,0,0,0.4)', 
+                     border: '1px solid rgba(255,255,255,0.05)', 
+                     color: 'var(--accent)', 
+                     fontSize: '11px', 
+                     outline: 'none',
+                     fontFamily: 'monospace',
+                     resize: 'none',
+                     scrollbarWidth: 'thin'
+                   }}
+                />
                <button 
                   type="button"
                   onClick={handleFileImport}

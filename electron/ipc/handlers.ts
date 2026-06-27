@@ -1,4 +1,4 @@
-import { ipcMain, app, BrowserWindow, dialog, clipboard, shell } from 'electron';
+import { ipcMain, app, BrowserWindow, dialog, clipboard, shell, nativeImage } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { BotService } from '../bot/bot-service';
@@ -7,6 +7,7 @@ import { getSettings, saveSettings } from '../utils/settings';
 import { IPCResponse } from '../../shared/ipc-types';
 import { wallpaperService } from '../services/wallpaper-service';
 import { statsService } from '../services/stats-service';
+import { allowPreviewPath } from '../main';
 
 const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.json');
 
@@ -18,7 +19,24 @@ const notifySettingsUpdate = (mainWindow: BrowserWindow | null) => {
   }
 };
 
-export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: BotService | null, accountManager: AccountManager | null) {
+let mainWindow: BrowserWindow | null = null;
+
+export function setupIpcHandlers(win: BrowserWindow | null, botService: BotService | null, accountManager: AccountManager | null) {
+  mainWindow = win;
+
+  if (mainWindow) {
+    mainWindow.on('closed', () => {
+      if (mainWindow === win) {
+        mainWindow = null;
+      }
+    });
+  }
+
+  if ((global as any).ipcHandlersRegistered) {
+    return;
+  }
+  (global as any).ipcHandlersRegistered = true;
+
   ipcMain.handle('get-settings', async () => {
     return { success: true, data: getSettings() };
   });
@@ -105,6 +123,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
         // Notify UI about new account and autoLogin state
         notifySettingsUpdate(mainWindow);
 
+        botService.updateEngineSettings(getSettings());
+
         return { success: true, user: result.user };
       }
       return { success: false, error: result.message };
@@ -167,9 +187,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     return { success: true };
   });
 
-  ipcMain.handle('get-channels', async () => {
+  ipcMain.handle('get-channels', async (_, accountIds?: string[]) => {
     try {
-      const channels = await botService?.getChannelsList() || { servers: [], dms: [] };
+      const channels = await botService?.getChannelsList(accountIds) || { servers: [], dms: [] };
       return { success: true, data: channels };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -310,6 +330,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('jump-to-message', (_, messageId) => {
     if (messageId) {
       clipboard.writeText(messageId);
+      if (messageId.startsWith('http://') || messageId.startsWith('https://')) {
+        shell.openExternal(messageId).catch((err) => console.error('Failed to open jump link:', err));
+      }
     }
     return { success: true };
   });
@@ -326,6 +349,11 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('stop-spam', async () => {
     if (!botService) return { success: false, error: 'Bot service non initialisé' };
     return await botService.stopSpam();
+  });
+
+  ipcMain.handle('get-spam-status', async () => {
+    if (!botService) return { success: true, data: { running: false, count: 0 } };
+    return { success: true, data: botService.getSpamStatus() };
   });
 
   ipcMain.handle('stop-dm-all', async () => {
@@ -345,9 +373,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     return await botService.deleteFriends(ids);
   });
 
-  ipcMain.handle('dm-all-friends', async (_, { message }) => {
+  ipcMain.handle('dm-all-friends', async (_, data) => {
     if (!botService) return { success: false, error: 'Bot service non initialisé' };
-    return await botService.dmAll(message);
+    return await botService.dmAll(data);
   });
 
   ipcMain.handle('leave-all-groups', async (_, ids = [], silent = false) => {
@@ -355,23 +383,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     return await botService.leaveGroups(ids, silent);
   });
 
-  ipcMain.handle('set-voice-stalker', async (_, data) => {
-    if (!botService) return { success: false, error: 'Bot service non initialisé' };
-    
-    // REDIRECT: data.userId is now treated as channelId in the new AFK Farmer system
-    const targetId = data.channelId || data.userId;
-    
-    if (targetId) {
-      await botService.voiceStalker.joinAFK(targetId);
-    } else {
-      await botService.voiceStalker.leaveAFK();
-    }
-    return { success: true };
-  });
-
   ipcMain.handle('get-farmer-status', async () => {
     if (!botService) return { success: false, error: 'Bot service non initialisé' };
-    return { success: true, data: botService.voiceStalker.getStatus() };
+    return { success: true, data: botService.getFarmerStatus() };
   });
 
   ipcMain.handle('close-all-dms', async () => {
@@ -421,6 +435,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
           if (token) {
             const cleanToken = token.replace(/"/g, '');
             clearInterval(intervalToken);
+            loginWin.removeAllListeners('closed');
             loginWin.close();
             resolve({ success: true, data: { token: cleanToken } });
           }
@@ -447,38 +462,114 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   });
 
   ipcMain.handle('open-external', async (_, url) => {
-    shell.openExternal(url);
-    return { success: true };
+    if (typeof url !== 'string') {
+      return { success: false, error: 'Invalid URL type' };
+    }
+    const lowerUrl = url.toLowerCase();
+    if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://')) {
+      console.warn(`[SECURITY] Blocked attempt to open non-http/https external URL: ${url}`);
+      return { success: false, error: 'Access denied: Only HTTP/HTTPS URLs are allowed' };
+    }
+    try {
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('select-file', async () => {
     if (!mainWindow) return { success: false, error: 'Fenêtre principale non trouvée' };
     
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile'],
-      filters: [
-        { name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }
-      ]
-    });
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Curseurs & Images', extensions: ['cur', 'ani', 'ico', 'png', 'jpg', 'jpeg', 'gif', 'webp'] }
+        ]
+      });
 
-    if (result.canceled || result.filePaths.length === 0) {
-      return { success: false, error: 'Sélection annulée' };
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Sélection annulée' };
+      }
+
+      const filePath = result.filePaths[0];
+      allowPreviewPath(filePath);
+      return { success: true, data: filePath };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
+  });
 
-    return { success: true, data: result.filePaths[0] };
+  // --- Cursor Import with Auto-Resize ---
+  ipcMain.handle('cursor:import', async () => {
+    if (!mainWindow) return { success: false, error: 'Fenêtre introuvable' };
+    
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Curseurs', extensions: ['cur', 'ani', 'ico', 'png'] }
+        ]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Annulé' };
+      }
+
+      const filePath = result.filePaths[0];
+      const ext = path.extname(filePath).toLowerCase();
+      
+      const cursorDir = path.join(app.getPath('userData'), 'cursors');
+      if (!fs.existsSync(cursorDir)) fs.mkdirSync(cursorDir, { recursive: true });
+      
+      const fileName = `cursor_${Date.now()}${ext}`;
+      const destPath = path.join(cursorDir, fileName);
+
+      // .cur, .ani, .ico are dedicated cursor formats
+      if (ext === '.cur' || ext === '.ani' || ext === '.ico') {
+        fs.copyFileSync(filePath, destPath);
+        const base64 = fs.readFileSync(destPath).toString('base64');
+        const mime = ext === '.ico' || ext === '.cur' ? 'image/x-icon' : 'application/octet-stream';
+        return { success: true, data: `data:${mime};base64,${base64}` };
+      }
+      
+      // For .png files, check dimensions and auto-resize if too large for Chromium
+      let img = nativeImage.createFromPath(filePath);
+      const size = img.getSize();
+      
+      if (size.width > 64 || size.height > 64) {
+        // Resize to 32x32 — Chromium rejects cursors > 128px silently
+        img = img.resize({ width: 32, height: 32, quality: 'best' });
+        const pngBuf = img.toPNG();
+        fs.writeFileSync(destPath, pngBuf);
+        
+        console.log(`[CURSOR] Resized ${size.width}x${size.height} → 32x32:`, destPath);
+        const base64 = pngBuf.toString('base64');
+        return { success: true, data: `data:image/png;base64,${base64}`, resized: true, originalSize: `${size.width}x${size.height}` };
+      }
+      
+      // If it's a small PNG, copy it as-is
+      fs.copyFileSync(filePath, destPath);
+      const base64 = fs.readFileSync(destPath).toString('base64');
+      return { success: true, data: `data:image/png;base64,${base64}` };
+    } catch (err: any) {
+      console.error('[CURSOR] Processing error:', err);
+      return { success: false, error: `Erreur de traitement: ${err.message}` };
+    }
   });
 
   ipcMain.handle('select-token-file', async () => {
     if (!mainWindow) return { success: false, error: 'Fenêtre introuvable' };
     
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile'],
-      filters: [{ name: 'Text Files', extensions: ['txt'] }]
-    });
-
-    if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Annulé' };
-
     try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [{ name: 'Text Files', extensions: ['txt'] }]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Annulé' };
+
       const content = fs.readFileSync(result.filePaths[0], 'utf-8');
       return { success: true, data: content };
     } catch (err: any) {
@@ -504,18 +595,18 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('wallpaper:upload', async (_, preSelectedPath?: string) => {
     if (!mainWindow) return { success: false, error: 'Fenêtre introuvable' };
     
-    let filePath = preSelectedPath;
-    
-    if (!filePath) {
-      const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openFile'],
-        filters: [{ name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }]
-      });
-      if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Annulé' };
-      filePath = result.filePaths[0];
-    }
-
     try {
+      let filePath = preSelectedPath;
+      
+      if (!filePath) {
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ['openFile'],
+          filters: [{ name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }]
+        });
+        if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Annulé' };
+        filePath = result.filePaths[0];
+      }
+
       const internalUrl = await wallpaperService.saveLocalWallpaper(filePath);
       return { success: true, data: internalUrl };
     } catch (err: any) {
@@ -532,37 +623,28 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
     }
   });
 
-  ipcMain.handle('get-dev-avatar', async () => {
-    try {
-      if (!botService || !botService.client.readyAt) {
-        // Fallback if bot is not connected yet
-        return 'https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif';
-      }
-      const devUser = await botService.client.users.fetch('759026330003308625');
-      return devUser.displayAvatarURL({ dynamic: true, size: 128 });
-    } catch (e) {
-      return 'https://cdn.discordapp.com/avatars/759026330003308625/a_8a2b535d4f3b7f14b6099bdac25f0e34.gif';
-    }
-  });
+
 
 
   // --- V1.2.1 Pomelo Sniper Handlers ---
-  ipcMain.handle('pomelo:check', async (_, username) => {
-    if (!botService) return { success: false, error: 'Bot non initialisé' };
-    return await botService.checkPomelo(username);
+  ipcMain.handle('pomelo:check', async (_, data) => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    return await botService.checkPomelo(data.username, data.botToken);
   });
 
   ipcMain.handle('pomelo:claim', async (_, { username, password }) => {
-    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
     return await botService.claimPomelo(username, password);
   });
 
   ipcMain.handle('pomelo:start-batch', async (_, data) => {
-    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
     return await botService.batchCheckPomelo(data.usernames, { 
       delay: data.delay, 
       autoClaim: data.autoClaim, 
-      password: data.password 
+      password: data.password,
+      botToken: data.botToken,
+      generator: data.generator
     });
   });
 
@@ -578,14 +660,19 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   }
 
   // --- Group Pro & Sentinel Duo Handlers ---
-  ipcMain.handle('group:start-rename', async (_, { channelId, names, delay }) => {
+  ipcMain.handle('group:start-rename', async (_, { channelId, names, delay, accounts }) => {
     if (!botService) return { success: false, error: 'Bot non initialisé' };
-    return await botService.startGroupRename(channelId, names, delay);
+    return await botService.startGroupRename(channelId, names, delay, accounts);
   });
 
   ipcMain.handle('group:stop-rename', async () => {
     if (!botService) return { success: false, error: 'Bot non initialisé' };
     return await botService.stopGroupRename();
+  });
+
+  ipcMain.handle('group:rename-status', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return { success: true, data: botService.groupService.getRenameStatus() };
   });
 
   ipcMain.handle('sentinel:start', async (_, { partnerToken, groupIds, groupLinks }) => {
@@ -631,5 +718,45 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null, botService: B
   ipcMain.handle('capmonster:check-key', async (_, key) => {
     if (!botService) return { success: false, error: 'Bot non initialisé' };
     return await botService.checkCapMonsterKey(key);
+  });
+
+  ipcMain.handle('2captcha:check-key', async (_, key) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkTwoCaptchaKey(key);
+  });
+
+  ipcMain.handle('anticaptcha:check-key', async (_, key) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkAntiCaptchaKey(key);
+  });
+
+  ipcMain.handle('capsolver:check-key', async (_, key) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkCapsolverKey(key);
+  });
+
+  ipcMain.handle('nocaptchaai:check-key', async (_, key) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.checkNoCaptchaAIKey(key);
+  });
+
+  ipcMain.handle('get-diagnostics', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return botService.getDiagnostics();
+  });
+
+  ipcMain.handle('auto-join-servers', async (_, data: { inviteLink: string; delay?: number }) => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return await botService.autoJoinServers(data.inviteLink, data.delay ?? 3000);
+  });
+
+  ipcMain.handle('stop-auto-join', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return botService.stopAutoJoin();
+  });
+
+  ipcMain.handle('get-auto-join-status', async () => {
+    if (!botService) return { success: false, error: 'Bot non initialisé' };
+    return { success: true, data: botService.getAutoJoinStatus() };
   });
 }

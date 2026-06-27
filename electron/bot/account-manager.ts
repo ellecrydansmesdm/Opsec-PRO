@@ -2,6 +2,7 @@ import { Client } from 'discord.js-selfbot-v13';
 import { Account, AppSettings } from '../../shared/types';
 import fs from 'fs';
 import path from 'path';
+import { encryptToken, decryptToken } from '../utils/settings';
 
 export class AccountManager {
     private accounts: Account[] = [];
@@ -17,6 +18,14 @@ export class AccountManager {
         try {
             const data = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
             let loadedAccounts: Account[] = data.accounts || [];
+            
+            // Decrypt tokens
+            loadedAccounts = loadedAccounts.map((acc: any) => {
+                if (acc && acc.token) {
+                    acc.token = decryptToken(acc.token);
+                }
+                return acc;
+            });
             
             // Deduplicate by Discord User ID only.
             // If the same account was added multiple times with different tokens,
@@ -109,6 +118,9 @@ export class AccountManager {
     public addAccount(account: Account) {
         // Replace existing account with the same Discord User ID (prevents expired token stacking)
         this.accounts = this.accounts.filter(a => a.id !== account.id);
+        if (account.selected) {
+            this.accounts.forEach(a => a.selected = false);
+        }
         this.accounts.push(account);
         this.save();
     }
@@ -144,9 +156,18 @@ export class AccountManager {
             // Get currently selected ID for global field
             const selected = this.getSelectedAccount();
             
+            // Encrypt tokens
+            const encryptedAccounts = this.accounts.map((acc: any) => {
+                const copy = { ...acc };
+                if (copy.token) {
+                    copy.token = encryptToken(copy.token);
+                }
+                return copy;
+            });
+            
             const newData = {
                 ...currentData,
-                accounts: this.accounts,
+                accounts: encryptedAccounts,
                 lastActiveAccountId: selected?.id || currentData.lastActiveAccountId
             };
             

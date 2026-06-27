@@ -7,6 +7,7 @@ import { SelectionModal } from "@/components/ui/SelectionModal";
 import { useLogsStore } from "@/store/useLogsStore";
 import { SpamSystem } from "@/components/modules/SpamSystem";
 import { PomeloSniper } from "@/components/modules/PomeloSniper";
+import { HubSectionCard, HubToggleRow, HubFieldRow } from '@/components/layout/HubPageLayout';
 import { audioService } from '@/services/AudioService';
 import { useActionValidator } from '@/hooks/useActionValidator';
 
@@ -18,6 +19,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   const { settings, updateSetting } = useSettingsStore();
   const { user } = useUserStore();
   const { addLog } = useLogsStore();
+  const isFr = settings.language === 'fr';
 
   const [purgeChannelId, setPurgeChannelId] = useState<string>(() => {
     const last = localStorage.getItem('lastPurgeChannel');
@@ -40,6 +42,10 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   const [isClosingDMs, setIsClosingDMs] = useState(false);
   const [isSyncingSelection, setIsSyncingSelection] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
+  const [dmAllTarget, setDmAllTarget] = useState<'all' | 'friends' | 'groups'>('all');
+  const [dmAllDelay, setDmAllDelay] = useState(2000);
+  const [dmAllPauseInterval, setDmAllPauseInterval] = useState(10);
+  const [dmAllPauseDuration, setDmAllPauseDuration] = useState(10000);
 
   const currentAccount = React.useMemo(() => settings.accounts?.find(a => a.id === user?.id), [settings.accounts, user?.id]);
   const rotator = currentAccount?.rotator;
@@ -74,12 +80,12 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     if (!validateTarget(purgeChannelId, 'Mass Purge')) return;
     
     if (!amount || amount <= 0) {
-      audioService.play('error');
-      showToast('Veuillez spécifier un nombre de messages à supprimer !', 'danger');
+      audioService.play('log_error_critical');
+      showToast(isFr ? 'Veuillez spécifier un nombre de messages à supprimer !' : 'Please specify a number of messages to delete!', 'danger');
       return;
     }
     
-    audioService.play('module_start');
+    audioService.play('module_launch');
     setPurging(true);
     localStorage.setItem('lastPurgeChannel', purgeChannelId);
     await window.electronAPI.startPurge({ 
@@ -88,15 +94,17 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         purgeAll: settings.adminPurge, 
         delay: purgeDelay 
     });
-    audioService.play('success');
+    audioService.play('module_complete');
     setPurging(false);
   };
 
   const handleStopSanitizer = async () => {
+    audioService.play('sanitizer_user_interrupt');
     await window.electronAPI.stopSanitizer();
     setIsProcessingFriends(false);
     setIsProcessingGroups(false);
     setIsProcessingServers(false);
+    setIsClosingDMs(false);
   };
 
   const handleStopDMAll = async () => {
@@ -105,7 +113,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     setSendingDmAll(false);
   };
 
-   const openFriendsSelection = async () => {
+  const openFriendsSelection = async () => {
     setIsSyncingSelection(true);
     const res = await window.electronAPI.getFriendsList();
     setIsSyncingSelection(false);
@@ -142,32 +150,49 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     setIsSelectionModalOpen(false);
     
     if (ids.length === 0) {
-      showToast('Veuillez sélectionner au moins une cible !', 'danger');
+      showToast(isFr ? 'Veuillez sélectionner au moins une cible !' : 'Please select at least one target!', 'danger');
       return;
     }
 
     onConfirm({
       isOpen: true,
-      title: selectionType === 'friends' ? 'Suppression d\'amis' : selectionType === 'groups' ? 'Départ des groupes' : 'Départ des serveurs',
-      message: `Voulez-vous vraiment ${selectionType === 'friends' ? `supprimer ${ids.length} amis` : selectionType === 'groups' ? `quitter ${ids.length} groupes` : `quitter ${ids.length} serveurs`} ${silent ? 'en toute discrétion ' : ''}? Cette action est irréversible.`,
+      title: selectionType === 'friends' 
+        ? (isFr ? "Suppression d'amis" : 'Friends Removal') 
+        : selectionType === 'groups' 
+          ? (isFr ? 'Départ des groupes' : 'Leave Groups') 
+          : (isFr ? 'Départ des serveurs' : 'Leave Servers'),
+      message: isFr 
+        ? `Voulez-vous vraiment ${selectionType === 'friends' ? `supprimer ${ids.length} amis` : selectionType === 'groups' ? `quitter ${ids.length} groupes` : `quitter ${ids.length} serveurs`} ${silent ? 'en toute discrétion ' : ''}? Cette action est irréversible.`
+        : `Do you really want to ${selectionType === 'friends' ? `remove ${ids.length} friends` : selectionType === 'groups' ? `leave ${ids.length} groups` : `leave ${ids.length} servers`} ${silent ? 'silently ' : ''}? This action is irreversible.`,
       onConfirm: async () => {
         try {
+          audioService.play('sanitizer_clean_start');
           if (selectionType === 'friends') setIsProcessingFriends(true);
           else if (selectionType === 'groups') setIsProcessingGroups(true);
           else setIsProcessingServers(true);
 
           if (selectionType === 'friends') {
             const res = await window.electronAPI.deleteAllFriends(ids);
-            if (res.success && res.data) showToast(`Succès : ${res.data.count} amis supprimés`);
+            if (res.success && res.data) {
+              audioService.play('sanitizer_clean_stop');
+              showToast(isFr ? `Succès : ${res.data.count} amis supprimés` : `Success: ${res.data.count} friends removed`);
+            }
           } else if (selectionType === 'groups') {
             const res = await window.electronAPI.leaveAllGroups(ids, silent);
-            if (res.success && res.data) showToast(`Succès : ${res.data.count} groupes quittés`);
+            if (res.success && res.data) {
+              audioService.play('sanitizer_clean_stop');
+              showToast(isFr ? `Succès : ${res.data.count} groupes quittés` : `Success: ${res.data.count} groups left`);
+            }
           } else {
             const res = await window.electronAPI.leaveAllServers(ids);
-            if (res.success && res.data) showToast(`Succès : ${res.data.count} serveurs quittés`);
+            if (res.success && res.data) {
+              audioService.play('sanitizer_clean_stop');
+              showToast(isFr ? `Succès : ${res.data.count} serveurs quittés` : `Success: ${res.data.count} servers left`);
+            }
           }
         } catch (err: any) {
-          showToast(`Erreur : ${err.message || "Opération échouée"}`, "danger");
+          audioService.play('module_failed');
+          showToast(isFr ? `Erreur : ${err.message || "Opération échouée"}` : `Error: ${err.message || "Operation failed"}`, "danger");
         } finally {
           setIsProcessingFriends(false);
           setIsProcessingGroups(false);
@@ -193,18 +218,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
   };
 
   return (
-    <div 
-      className="custom-scrollbar modules-grid" 
-      style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))', 
-        gridAutoFlow: 'dense',
-        gap: '24px', 
-        padding: '10px 10px 80px 10px',
-        maxWidth: '100%',
-        overflowX: 'hidden'
-      }}
-    >
+    <div className="hub-raid-grid custom-scrollbar">
       
       {/* Sync Overlay */}
       {isSyncingSelection && (
@@ -253,22 +267,17 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
       )}
       
       {/* Mass Clear Card */}
-      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent)', boxShadow: '0 0 15px var(--accent-glow)' }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ padding: '12px', background: 'var(--accent-soft)', borderRadius: '12px', color: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}><Trash2 size={22} /></div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Vider le salon</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Suppression rapide de messages</p>
-          </div>
-        </div>
+      <HubSectionCard icon={Trash2} glowColor="var(--accent)" title={isFr ? 'VIDER LE SALON' : 'CLEAR CHANNEL'} className="animate-fade-in">
+        <p className="hub-field-hint" style={{ marginTop: 0, marginBottom: '16px' }}>
+          {isFr ? 'Suppression rapide de messages' : 'Fast message deletion'}
+        </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <DoubleChannelSelector onSelect={(id) => setPurgeChannelId(id)} currentId={purgeChannelId} />
           
           <div style={{ padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span className="caption">Messages à supprimer</span>
+                <span className="caption">{isFr ? 'Messages à supprimer' : 'Messages to delete'}</span>
                 <span style={{ color: 'var(--accent)', fontWeight: '900' }}>{amount >= 1000 ? 'ALL' : amount}</span>
             </div>
             <input 
@@ -283,7 +292,7 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
 
           <div style={{ padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span className="caption">Délai entre suppression</span>
+                <span className="caption">{isFr ? 'Délai entre suppression' : 'Delay between deletions'}</span>
                 <span style={{ color: purgeDelay < 500 ? 'var(--warning)' : 'var(--accent)', fontWeight: '900' }}>{purgeDelay}ms</span>
             </div>
             <input 
@@ -295,26 +304,21 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               onChange={(e) => setPurgeDelay(parseInt(e.target.value))} 
               style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer', boxSizing: 'border-box' }} 
             />
-            {purgeDelay < 500 && <p style={{ fontSize: '9px', color: 'var(--warning)', marginTop: '5px' }}>⚠️ Risque de rate-limit en dessous de 500ms</p>}
+            {purgeDelay < 500 && (
+              <p style={{ fontSize: '9px', color: 'var(--warning)', marginTop: '5px' }}>
+                {isFr ? '⚠️ Risque de rate-limit en dessous de 500ms' : '⚠️ Rate-limit risk below 500ms'}
+              </p>
+            )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '0' }}>
-              <ShieldCheck size={16} color={settings.adminPurge ? "var(--success)" : "var(--text-dim)"} style={{ flexShrink: 0 }} />
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: '0' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Admin Purge</span>
-                <span style={{ fontSize: '8px', color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Supprimer tous les messages</span>
-              </div>
-            </div>
-            <div onClick={() => updateSetting('adminPurge', !settings.adminPurge)} className={`nighty-toggle ${settings.adminPurge ? 'active' : ''}`} style={{ flexShrink: 0 }}>
-              <div className="nighty-toggle-handle"></div>
-            </div>
-          </div>
-          <p style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '-8px', marginBottom: '8px', padding: '0 5px' }}>
-            {settings.adminPurge 
-              ? "⚡ MODE ADMIN : Supprime TOUS les messages du salon (nécessite la permission 'Gérer les messages')." 
-              : "🛡️ MODE PERSO : Supprime uniquement VOS messages (plus sûr, plus lent)."}
-          </p>
+          <HubToggleRow
+            title="Admin Purge"
+            description={settings.adminPurge 
+              ? (isFr ? "Supprime TOUS les messages du salon (permission Gérer les messages requise)" : "Deletes ALL messages from the channel (Manage Messages permission required)") 
+              : (isFr ? "Supprime uniquement VOS messages (plus sûr)" : "Only deletes YOUR messages (safer)")}
+            active={settings.adminPurge}
+            onToggle={() => updateSetting('adminPurge', !settings.adminPurge)}
+          />
 
           <button 
             onClick={handlePurge} 
@@ -331,217 +335,374 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
             }}
           >
             {purging ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
-            {purging ? 'Arrêter la Purge' : 'Lancer la Purge'}
+            {purging 
+              ? (isFr ? 'Arrêter la Purge' : 'Stop Purge') 
+              : (isFr ? 'Lancer la Purge' : 'Start Purge')}
           </button>
         </div>
-      </div>
+      </HubSectionCard>
 
       {/* Account Sanitizer Card */}
-      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.1s' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--danger)', boxShadow: '0 0 15px var(--danger-glow)' }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: 'var(--danger)', boxShadow: '0 0 20px var(--danger-glow)' }}><AlertTriangle size={22} /></div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Nettoyage de compte</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Optimisation et rafraîchissement</p>
-          </div>
-        </div>
+      <HubSectionCard icon={AlertTriangle} iconColor="var(--danger)" glowColor="var(--danger)" title="NETTOYAGE DE COMPTE" className="animate-fade-in">
+        <p className="hub-field-hint" style={{ marginTop: 0, marginBottom: '16px' }}>
+          {isFr ? 'Optimisation et rafraîchissement' : 'Optimization and refresh'}
+        </p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          {(isProcessingGroups || isProcessingFriends || isProcessingServers || isClosingDMs) ? (
             <button 
-              onClick={openGroupsSelection} 
-              disabled={isProcessingGroups || isProcessingFriends || isProcessingServers}
-              className="btn-primary" 
-              style={{ 
-                flex: '1 1 130px',
-                background: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
-                border: `1px solid rgba(239, 68, 68, 0.2)`, 
-                fontSize: '11px', 
-                gap: '8px',
-                opacity: (isProcessingFriends || isProcessingServers) ? 0.4 : 1,
+              onClick={handleStopSanitizer}
+              className="btn-danger"
+              style={{
+                width: '100%',
+                padding: '14px',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {isProcessingGroups ? <RefreshCw className="animate-spin" size={14} /> : <MessageSquare size={14} />}
-              <span>{isProcessingGroups ? 'En cours...' : 'Quitter Groupes'}</span>
-            </button>
-            
-            <button 
-              onClick={openFriendsSelection} 
-              disabled={isProcessingFriends || isProcessingGroups || isProcessingServers}
-              className="btn-primary" 
-              style={{ 
-                flex: '1 1 130px',
-                background: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
-                border: `1px solid rgba(239, 68, 68, 0.2)`, 
-                fontSize: '11px', 
-                gap: '8px',
-                opacity: (isProcessingGroups || isProcessingServers) ? 0.4 : 1,
+                gap: '10px',
+                background: 'var(--danger)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                boxShadow: '0 0 20px var(--danger-glow)',
                 borderRadius: '12px',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap'
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: '900',
+                letterSpacing: '0.5px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
               }}
             >
-              {isProcessingFriends ? <RefreshCw className="animate-spin" size={14} /> : <Users size={14} />}
-              <span>{isProcessingFriends ? 'En cours...' : 'Vider les Amis'}</span>
+              <X className="animate-pulse" size={16} />
+              <span>{isFr ? 'ARRÊTER LE NETTOYAGE' : 'STOP SANITIZER'}</span>
             </button>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              <button 
+                onClick={openGroupsSelection} 
+                disabled={isProcessingGroups || isProcessingFriends || isProcessingServers}
+                className="btn-primary" 
+                style={{ 
+                  flex: '1 1 130px',
+                  background: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                  color: (isProcessingGroups || isProcessingFriends || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
+                  border: `1px solid rgba(239, 68, 68, 0.2)`, 
+                  fontSize: '11px', 
+                  gap: '8px',
+                  opacity: (isProcessingFriends || isProcessingServers) ? 0.4 : 1,
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {isProcessingGroups ? <RefreshCw className="animate-spin" size={14} /> : <MessageSquare size={14} />}
+                <span>
+                  {isProcessingGroups 
+                    ? (isFr ? 'En cours...' : 'Processing...') 
+                    : (isFr ? 'Quitter Groupes' : 'Leave Groups')}
+                </span>
+              </button>
+              
+              <button 
+                onClick={openFriendsSelection} 
+                disabled={isProcessingFriends || isProcessingGroups || isProcessingServers}
+                className="btn-primary" 
+                style={{ 
+                  flex: '1 1 130px',
+                  background: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                  color: (isProcessingFriends || isProcessingGroups || isProcessingServers) ? 'var(--accent)' : 'var(--danger)', 
+                  border: `1px solid rgba(239, 68, 68, 0.2)`, 
+                  fontSize: '11px', 
+                  gap: '8px',
+                  opacity: (isProcessingGroups || isProcessingServers) ? 0.4 : 1,
+                  borderRadius: '12px',
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {isProcessingFriends ? <RefreshCw className="animate-spin" size={14} /> : <Users size={14} />}
+                <span>
+                  {isProcessingFriends 
+                    ? (isFr ? 'En cours...' : 'Processing...') 
+                    : (isFr ? 'Vider les Amis' : 'Remove Friends')}
+                </span>
+              </button>
 
-            <button 
-              onClick={openServersSelection} 
-              disabled={isProcessingServers || isProcessingFriends || isProcessingGroups}
-              className="btn-primary" 
-              style={{ 
-                flex: '1 1 130px',
-                borderRadius: '12px',
-                fontSize: '11px',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap',
-                background: 'rgba(255,184,0,0.05)',
-                color: 'var(--warning)',
-                border: '1px solid rgba(255,184,0,0.2)',
-                boxShadow: 'none',
-                opacity: (isProcessingFriends || isProcessingGroups) ? 0.4 : 1
-              }}
-            >
-              {isProcessingServers ? <RefreshCw className="animate-spin" size={14} /> : <Activity size={14} />}
-              {isProcessingServers ? 'En cours...' : 'Quitter Serveurs'}
-            </button>
+              <button 
+                onClick={openServersSelection} 
+                disabled={isProcessingServers || isProcessingFriends || isProcessingGroups}
+                className="btn-primary" 
+                style={{ 
+                  flex: '1 1 130px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(255,184,0,0.05)',
+                  color: 'var(--warning)',
+                  border: '1px solid rgba(255,184,0,0.2)',
+                  boxShadow: 'none',
+                  opacity: (isProcessingFriends || isProcessingGroups) ? 0.4 : 1
+                }}
+              >
+                {isProcessingServers ? <RefreshCw className="animate-spin" size={14} /> : <Activity size={14} />}
+                <span>
+                  {isProcessingServers 
+                    ? (isFr ? 'En cours...' : 'Processing...') 
+                    : (isFr ? 'Quitter Serveurs' : 'Leave Servers')}
+                </span>
+              </button>
 
-            <button 
-              onClick={() => {
-                onConfirm({
-                  isOpen: true,
-                  title: 'Fermer tous les DMs',
-                  message: 'Voulez-vous vraiment fermer TOUTES vos conversations privées ? Cette action est irréversible.',
-                  onConfirm: async () => {
-                    setIsClosingDMs(true);
-                    const res = await window.electronAPI.closeAllDMs();
-                    setIsClosingDMs(false);
-                    if (res.success && res.data) {
-                      showToast(`${res.data.count} conversations fermées.`);
-                    } else {
-                      showToast(res.error || 'Erreur lors de la fermeture des DMs', 'danger');
-                    }
-                  },
-                  type: 'danger'
-                });
-              }} 
-              disabled={isClosingDMs}
-              className="btn-primary" 
-              style={{ 
-                gridColumn: 'span 3',
-                background: isClosingDMs ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
-                color: isClosingDMs ? 'var(--accent)' : 'var(--danger)', 
-                border: `1px solid rgba(239, 68, 68, 0.2)`, 
-                fontSize: '11px', 
-                gap: '8px'
-              }}
-            >
-              {isClosingDMs ? <RefreshCw className="animate-spin" size={14} /> : <Trash2 size={14} />}
-              {isClosingDMs ? 'Nettoyage en cours...' : 'Fermer tous les DMs'}
-            </button>
-          </div>
+              <button 
+                onClick={() => {
+                  onConfirm({
+                    isOpen: true,
+                    title: isFr ? 'Fermer tous les DMs' : 'Close All DMs',
+                    message: isFr 
+                      ? 'Voulez-vous vraiment fermer TOUTES vos conversations privées ? Cette action est irréversible.' 
+                      : 'Do you really want to close ALL your private conversations? This action is irreversible.',
+                    onConfirm: async () => {
+                      setIsClosingDMs(true);
+                      const res = await window.electronAPI.closeAllDMs();
+                      setIsClosingDMs(false);
+                      if (res.success && res.data) {
+                        showToast(isFr ? `${res.data.count} conversations fermées.` : `${res.data.count} conversations closed.`);
+                      } else {
+                        showToast(
+                          isFr 
+                            ? (res.error || 'Erreur lors de la fermeture des DMs') 
+                            : (res.error || 'Error while closing DMs'), 
+                          'danger'
+                        );
+                      }
+                    },
+                    type: 'danger'
+                  });
+                }} 
+                disabled={isClosingDMs}
+                className="btn-primary" 
+                style={{ 
+                  gridColumn: 'span 3',
+                  background: isClosingDMs ? 'var(--accent-soft)' : 'rgba(239, 68, 68, 0.05)', 
+                  color: isClosingDMs ? 'var(--accent)' : 'var(--danger)', 
+                  border: `1px solid rgba(239, 68, 68, 0.2)`, 
+                  fontSize: '11px', 
+                  gap: '8px'
+                }}
+              >
+                {isClosingDMs ? <RefreshCw className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                <span>
+                  {isClosingDMs 
+                    ? (isFr ? 'Nettoyage en cours...' : 'Cleaning up...') 
+                    : (isFr ? 'Fermer tous les DMs' : 'Close All DMs')}
+                </span>
+              </button>
+            </div>
+          )}
           
-          <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid var(--border)' }}>
-             <label className="caption" style={{ display: 'block', marginBottom: '10px' }}>DM ALL (Amis & Groupes)</label>
-             <textarea value={dmAllText} onChange={e => setDmAllText(e.target.value)} placeholder="Message... {user} pour mention" style={{ width: '100%', height: '80px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '11px', resize: 'none' }} />
+          <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+             <label className="caption" style={{ display: 'block', color: 'var(--accent)', fontWeight: '900', letterSpacing: '0.5px' }}>DM ALL CONFIGURATION</label>
              
+             <div style={{ 
+                padding: '12px', 
+                background: 'rgba(239, 68, 68, 0.08)', 
+                border: '1px solid rgba(239, 68, 68, 0.25)', 
+                borderRadius: '10px', 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '8px'
+             }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--danger)', fontWeight: '800', fontSize: '11px' }}>
+                  <AlertTriangle size={14} />
+                  <span>{isFr ? 'ATTENTION CAPTCHA REQUIS' : 'WARNING CAPTCHA REQUIRED'}</span>
+                </div>
+                <p style={{ fontSize: '10px', color: 'var(--text-dim)', lineHeight: '1.4', margin: 0 }}>
+                  {isFr 
+                    ? "L'envoi de messages à des utilisateurs avec qui vous n'avez jamais discuté déclenchera un Captcha à 100% de la part de Discord." 
+                    : "Sending messages to users you have never chatted with will trigger a 100% Captcha from Discord."}
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'Network' }))}
+                  style={{ 
+                    alignSelf: 'flex-start',
+                    fontSize: '9px', 
+                    padding: '4px 8px', 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'white',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '900',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isFr ? 'CONFIGURATION RESEAU' : 'NETWORK CONFIGURATION'}
+                </button>
+             </div>
+
+             <textarea 
+               value={dmAllText} 
+               onChange={e => setDmAllText(e.target.value)} 
+               placeholder={isFr ? 'Message... {user} pour mention' : 'Message... {user} for mention'} 
+               style={{ width: '100%', height: '80px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '11px', resize: 'none', outline: 'none' }} 
+             />
+             
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 'bold', opacity: 0.5 }}>{isFr ? 'CIBLE DE DIFFUSION' : 'BROADCAST TARGET'}</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {(['all', 'friends', 'groups'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setDmAllTarget(t)}
+                      style={{
+                        padding: '6px 10px',
+                        fontSize: '10px',
+                        borderRadius: '6px',
+                        background: dmAllTarget === t ? 'rgba(0, 210, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                        border: `1px solid ${dmAllTarget === t ? 'var(--accent)' : 'var(--border)'}`,
+                        color: dmAllTarget === t ? 'var(--accent)' : 'var(--text-dim)',
+                        cursor: 'pointer',
+                        transition: '0.2s',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {t === 'all' ? (isFr ? 'TOUS' : 'ALL') : t === 'friends' ? (isFr ? 'AMIS' : 'FRIENDS') : (isFr ? 'GROUPES' : 'GROUPS')}
+                    </button>
+                  ))}
+                </div>
+             </div>
+
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                    <span style={{ opacity: 0.5 }}>{isFr ? 'DÉLAI' : 'DELAY'}</span>
+                    <span style={{ color: 'var(--accent)' }}>{dmAllDelay}ms</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="100"
+                    max="15000"
+                    step="100"
+                    value={dmAllDelay}
+                    onChange={e => setDmAllDelay(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                    <span style={{ opacity: 0.5 }}>{isFr ? 'PAUSE TOUS LES' : 'PAUSE EVERY'}</span>
+                    <span style={{ color: 'var(--accent)' }}>{dmAllPauseInterval} DMs</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value={dmAllPauseInterval}
+                    onChange={e => setDmAllPauseInterval(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
+                  />
+                </div>
+             </div>
+
+             <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                  <span style={{ opacity: 0.5 }}>{isFr ? 'DURÉE DE LA PAUSE' : 'PAUSE DURATION'}</span>
+                  <span style={{ color: 'var(--accent)' }}>{dmAllPauseDuration / 1000}s</span>
+                </div>
+                <input
+                  type="range"
+                  min="500"
+                  max="30000"
+                  step="500"
+                  value={dmAllPauseDuration}
+                  onChange={e => setDmAllPauseDuration(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent)' }}
+                />
+             </div>
+              
              <button 
-              onClick={sendingDmAll ? handleStopDMAll : () => {
-                if (!dmAllText.trim()) {
-                  showToast('Veuillez entrer un message pour le DM ALL !', 'danger');
-                  return;
-                }
-                onConfirm({
-                  isOpen: true, 
-                  title: 'DM ALL', 
-                  message: `Voulez-vous envoyer ce message à TOUS vos amis et groupes ?`,
-                  onConfirm: async () => { 
-                    setSendingDmAll(true); 
-                    await window.electronAPI.dmAllFriends({ message: dmAllText }); 
-                    setSendingDmAll(false); 
-                  },
-                  type: 'danger'
-                });
-              }} 
-             className="btn-primary" 
-             style={{ 
-               width: '100%', 
-               marginTop: '15px', 
-               background: sendingDmAll ? 'var(--danger)' : 'var(--accent)', 
-               boxShadow: sendingDmAll ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--accent-glow)' 
-             }}
-            >
-               {sendingDmAll ? 'Arrêter le DM ALL' : 'Démarrer le DM ALL'}
-             </button>
-          </div>
+               onClick={sendingDmAll ? handleStopDMAll : () => {
+                 if (!dmAllText.trim()) {
+                   showToast(isFr ? 'Veuillez entrer un message pour le DM ALL !' : 'Please enter a message for DM ALL!', 'danger');
+                   return;
+                 }
+                 onConfirm({
+                   isOpen: true, 
+                   title: 'DM ALL', 
+                   message: isFr ? 'Voulez-vous envoyer ce message à vos cibles sélectionnées ?' : 'Do you want to send this message to your selected targets?',
+                   onConfirm: async () => { 
+                     setSendingDmAll(true); 
+                     await window.electronAPI.dmAllFriends({ 
+                       message: dmAllText,
+                       target: dmAllTarget,
+                       delay: dmAllDelay,
+                       pauseInterval: dmAllPauseInterval,
+                       pauseDuration: dmAllPauseDuration
+                     }); 
+                     setSendingDmAll(false); 
+                   },
+                   type: 'danger'
+                 });
+               }} 
+              className="btn-primary" 
+              style={{ 
+                width: '100%', 
+                marginTop: '5px', 
+                background: sendingDmAll ? 'var(--danger)' : 'var(--accent)', 
+                boxShadow: sendingDmAll ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--accent-glow)' 
+              }}
+             >
+                {sendingDmAll 
+                  ? (isFr ? 'Arrêter le DM ALL' : 'Stop DM ALL') 
+                  : (isFr ? 'Démarrer le DM ALL' : 'Start DM ALL')}
+              </button>
+           </div>
         </div>
-      </div>
+      </HubSectionCard>
 
       {/* Advanced Cyberpunk Spam Module */}
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div className="hub-raid-grid-full">
         <SpamSystem showToast={showToast} />
       </div>
 
       {/* NEW: Pomelo Username Sniper Module */}
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div className="hub-raid-grid-full">
         <PomeloSniper showToast={showToast} />
       </div>
 
-
       {/* Spotify Lyrics Card */}
-      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.3s' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#1DB954', boxShadow: '0 0 15px #1DB954' }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ padding: '12px', background: 'rgba(29, 185, 84, 0.1)', borderRadius: '12px', color: '#1DB954', boxShadow: '0 0 20px rgba(29, 185, 84, 0.4)' }}>
-            <Activity size={22} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>Spotify Sync</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Real-time Lyrics Status</p>
-          </div>
-        </div>
+      <HubSectionCard icon={Activity} iconColor="#1DB954" glowColor="#1DB954" title="SPOTIFY SYNC" className="animate-fade-in">
+        <p className="hub-field-hint" style={{ marginTop: 0, marginBottom: '16px' }}>
+          {isFr ? 'Paroles en temps réel via LRCLIB' : 'Real-time lyrics via LRCLIB'}
+        </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid var(--border)' }}>
-            <div>
-              <p style={{ fontSize: '14px', fontWeight: '800', color: 'white' }}>Paroles en Temps Réel</p>
-              <p className="caption" style={{ opacity: 0.4, textTransform: 'none', fontSize: '10px', lineHeight: '1.4', marginTop: '5px' }}>
-                Opsec Pro utilise LRCLIB pour afficher les paroles en temps reel.
-              </p>
-            </div>
-            <div 
-              onClick={async () => {
-                const newState = !settings.spotifyLyricsEnabled;
-                updateSetting('spotifyLyricsEnabled', newState);
-                await window.electronAPI.toggleSpotifyLyrics({ enabled: newState, cookie: settings.spotifyCookie });
-                showToast(newState ? "Lyrics Status Active" : "Lyrics Status Desactive", newState ? 'success' : 'danger');
-              }} 
-              className={`nighty-toggle ${settings.spotifyLyricsEnabled ? 'active' : ''}`}
-              style={{ '--accent': '#1DB954' } as any}
-            >
-              <div className="nighty-toggle-handle"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+        <HubToggleRow
+          title={isFr ? 'Paroles en Temps Réel' : 'Real-Time Lyrics'}
+          description={isFr 
+            ? 'Opsec Pro utilise LRCLIB pour afficher les paroles en temps réel.' 
+            : 'Opsec Pro uses LRCLIB to display real-time lyrics.'}
+          active={!!settings.spotifyLyricsEnabled}
+          onToggle={async () => {
+            const newState = !settings.spotifyLyricsEnabled;
+            updateSetting('spotifyLyricsEnabled', newState);
+            await window.electronAPI.toggleSpotifyLyrics({ enabled: newState, cookie: settings.spotifyCookie });
+            showToast(
+              newState 
+                ? (isFr ? "Statut Paroles Actif" : "Lyrics Status Active") 
+                : (isFr ? "Statut Paroles Désactivé" : "Lyrics Status Inactive"), 
+              newState ? 'success' : 'danger'
+            );
+          }}
+          accent="#1DB954"
+        />
+      </HubSectionCard>
 
       {/* HypeSquad House Selector Module */}
-      <div className="glass-card animate-fade-in" style={{ padding: '30px', position: 'relative', animationDelay: '0.4s' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#5865F2', boxShadow: '0 0 15px rgba(88, 101, 242, 0.4)' }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-          <div style={{ padding: '12px', background: 'rgba(88, 101, 242, 0.1)', borderRadius: '12px', color: '#5865F2', boxShadow: '0 0 20px rgba(88, 101, 242, 0.2)' }}>
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '900' }}>HypeSquad House</h2>
-            <p className="caption" style={{ opacity: 0.4, fontSize: '8px' }}>Discord Identity Badge</p>
-          </div>
-        </div>
+      <HubSectionCard icon={ShieldCheck} iconColor="#5865F2" glowColor="#5865F2" title="HYPESQUAD HOUSE" className="animate-fade-in">
+        <p className="hub-field-hint" style={{ marginTop: 0, marginBottom: '16px' }}>
+          {isFr ? "Badge d'identité Discord" : 'Discord identity badge'}
+        </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -553,12 +714,12 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               <button 
                 key={house.id}
                 onClick={async () => {
-                  const res = await (window.electronAPI as any).setHypeSquadBadge(house.id);
+                  const res = await window.electronAPI.setHypeSquadBadge(house.id);
                   if (res.success) {
                     handleHouseUpdate(house.id);
-                    showToast(`Badge ${house.name} active !`);
+                    showToast(isFr ? `Badge ${house.name} activé !` : `Badge ${house.name} active!`);
                   } else {
-                    showToast(res.error || 'Erreur HypeSquad', 'danger');
+                    showToast(isFr ? (res.error || 'Erreur HypeSquad') : (res.error || 'HypeSquad Error'), 'danger');
                   }
                 }}
                 style={{ 
@@ -581,10 +742,10 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
 
           <button 
             onClick={async () => {
-              const res = await (window.electronAPI as any).setHypeSquadBadge(0);
+              const res = await window.electronAPI.setHypeSquadBadge(0);
               if (res.success) {
                 handleHouseUpdate(0);
-                showToast('Badge HypeSquad supprime');
+                showToast(isFr ? 'Badge HypeSquad supprimé' : 'HypeSquad badge removed');
               }
             }}
             className="btn-primary"
@@ -594,10 +755,10 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
               boxShadow: 'none'
             }}
           >
-            <Trash2 size={12} style={{ marginRight: '8px' }} /> SUPPRIMER LE BADGE
+            <Trash2 size={12} style={{ marginRight: '8px' }} /> {isFr ? 'SUPPRIMER LE BADGE' : 'REMOVE BADGE'}
           </button>
         </div>
-      </div>
+      </HubSectionCard>
 
       {/* Selection Modal Integration */}
       <SelectionModal 
@@ -605,7 +766,11 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
         onClose={() => setIsSelectionModalOpen(false)}
         onConfirm={handleSelectionConfirm}
         items={selectionItems}
-        title={selectionType === 'friends' ? 'Sélectionner les amis' : selectionType === 'servers' ? 'Sélectionner les serveurs' : 'Sélectionner les groupes'}
+        title={selectionType === 'friends' 
+          ? (isFr ? 'Sélectionner les amis' : 'Select Friends') 
+          : selectionType === 'servers' 
+            ? (isFr ? 'Sélectionner les serveurs' : 'Select Servers') 
+            : (isFr ? 'Sélectionner les groupes' : 'Select Groups')}
         type={selectionType}
       />
 

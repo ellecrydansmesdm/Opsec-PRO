@@ -1,4 +1,4 @@
-import { Client } from 'discord.js-selfbot-v13';
+﻿import { Client } from 'discord.js-selfbot-v13';
 import { FarmerConfig } from '../../shared/types';
 
 export type FarmerStatus = 'connected' | 'idle' | 'hopping';
@@ -25,17 +25,12 @@ export class VoiceStalker {
 
     public updateConfig(config: FarmerConfig) {
         this.config = config;
-        if (config.vocalHopper.enabled && config.enabled) {
-            this.startHopper();
-        } else if (config.enabled && config.vocalHopper.channelIds.length > 0) {
-            // Standard single channel join if hopper is off but farmer is on
-            if (this.status === 'idle') {
-                this.joinAFK(config.vocalHopper.channelIds[0]);
-            }
-        } else if (!config.enabled) {
+        if (!config.enabled || !config.vocalHopper.enabled || config.vocalHopper.channelIds.length === 0) {
             this.leaveAFK();
             this.stopHopper();
+            return;
         }
+        this.startHopper();
     }
 
     private setupListeners() {
@@ -44,7 +39,7 @@ export class VoiceStalker {
 
             if (newState.member?.id === this.client.user?.id) {
                 if (!newState.channelId) {
-                    this.logCallback(`[AFK] Déconnexion détectée. Reconnexion dans 5s...`, 'error');
+                    this.logCallback(`[AFK] D├®connexion d├®tect├®e. Reconnexion dans 5s...`, 'error');
                     setTimeout(() => {
                         if (this.status !== 'idle' && this.currentChannelId) {
                             this.joinAFK(this.currentChannelId);
@@ -99,7 +94,7 @@ export class VoiceStalker {
     }
 
     public async joinAFK(channelId: string) {
-        if (!this.client?.user) return { success: false, message: 'Client non connecté' };
+        if (!this.client?.user) return { success: false, message: 'Client non connect├®' };
 
         try {
             let targetGuildId = null;
@@ -144,7 +139,7 @@ export class VoiceStalker {
         if (!this.client?.user || !this.currentGuildId) {
             this.status = 'idle';
             this.startTime = null;
-            return { success: false, message: 'Non connecté' };
+            return { success: false, message: 'Non connect├®' };
         }
 
         try {

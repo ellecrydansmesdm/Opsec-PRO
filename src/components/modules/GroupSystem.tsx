@@ -10,12 +10,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SelectionModal } from '../ui/SelectionModal';
 
 // --- Custom Group Dropdown ---
-const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = "-- Choisir un groupe --" }: any) => {
+const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder }: any) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const { settings } = useSettingsStore();
+    const isFr = settings.language === 'fr';
     
     const selectedGroup = groups.find((g: any) => g.id === selectedId);
+    const displayPlaceholder = placeholder || (isFr ? "-- Choisir un groupe --" : "-- Select a group --");
     
     const filteredGroups = useMemo(() => {
         return groups.filter((g: any) => 
@@ -38,7 +41,7 @@ const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = 
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Users size={14} style={{ opacity: 0.5 }} />
-                    <span style={{ fontWeight: '600' }}>{selectedGroup ? selectedGroup.name : placeholder}</span>
+                    <span style={{ fontWeight: '600' }}>{selectedGroup ? selectedGroup.name : displayPlaceholder}</span>
                 </div>
                 <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />
             </div>
@@ -61,7 +64,7 @@ const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = 
                                 autoFocus
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Rechercher un groupe..."
+                                placeholder={isFr ? "Rechercher un groupe..." : "Search a group..."}
                                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'white', fontSize: '11px' }}
                             />
                             {onRefresh && (
@@ -78,7 +81,7 @@ const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = 
                                         color: isRefreshing ? 'var(--accent)' : 'rgba(255,255,255,0.3)',
                                         transition: '0.3s'
                                     }}
-                                    title="Rafraichir les groupes"
+                                    title={isFr ? "Rafraîchir les groupes" : "Refresh groups"}
                                 >
                                     <RefreshCw size={14} className={isRefreshing ? "spin-animation" : ""} />
                                 </button>
@@ -86,7 +89,7 @@ const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = 
                         </div>
                         <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                             {filteredGroups.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', fontSize: '11px', opacity: 0.4 }}>Aucun groupe trouve</div>
+                                <div style={{ padding: '20px', textAlign: 'center', fontSize: '11px', opacity: 0.4 }}>{isFr ? "Aucun groupe trouvé" : "No group found"}</div>
                             ) : (
                                 filteredGroups.map((g: any) => (
                                     <div 
@@ -120,6 +123,7 @@ const GroupDropdown = ({ groups, selectedId, onSelect, onRefresh, placeholder = 
 export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success' | 'danger') => void }) => {
     const { user } = useUserStore();
     const { settings } = useSettingsStore();
+    const isFr = settings.language === 'fr';
     
     // Group Spammer State
     const [groups, setGroups] = useState<any[]>([]);
@@ -127,6 +131,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
     const [names, setNames] = useState<string>('');
     const [delay, setDelay] = useState(2000);
     const [isRenaming, setIsRenaming] = useState(false);
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
     
     // Sentinel Mode State
     const [isSentinelActive, setIsSentinelActive] = useState(false);
@@ -155,18 +160,42 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
             checkSentinelStatus();
             
             // Log for the user when they switch to this tab
-            (window as any).electronAPI.logInfo?.("Acces au module Group Pro - Systemes operationnels.", 'info');
+            (window as any).electronAPI.logInfo?.(isFr ? "Acces au module Group Pro - Systemes operationnels." : "Access to Group Pro module - Operational systems.", 'info');
             
             // Log specific sentinel status if active
             const logStatus = async () => {
                 const res = await (window as any).electronAPI.sentinelStatus();
                 if (res && res.success && res.data?.active) {
-                    (window as any).electronAPI.logInfo?.(`[Sentinel] Protection Duo active avec ${res.data.partner}`, 'success');
+                    (window as any).electronAPI.logInfo?.(isFr ? `[Sentinel] Protection Duo active avec ${res.data.partner}` : `[Sentinel] Duo Protection active with ${res.data.partner}`, 'success');
                 }
             };
             logStatus();
+
+            // Restore active Group Rename spammer state from background
+            const checkRenameStatus = async () => {
+                try {
+                    const res = await (window as any).electronAPI.groupRenameStatus();
+                    if (res && res.success && res.data && res.data.active) {
+                        setIsRenaming(true);
+                        setSelectedGroup(res.data.channelId || '');
+                        setNames(res.data.names.join('\n'));
+                        setDelay(res.data.delay);
+                        if (res.data.accountIds) {
+                            setSelectedAccounts(res.data.accountIds);
+                        }
+                    }
+                } catch (e) {}
+            };
+            checkRenameStatus();
         }
     }, []);
+
+    // Auto-select user's main token if no tokens are selected
+    useEffect(() => {
+        if (user && selectedAccounts.length === 0) {
+            setSelectedAccounts([user.id]);
+        }
+    }, [user]);
 
     const loadFriends = async () => {
         try {
@@ -215,19 +244,25 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
 
     // --- SPAMMER LOGIC ---
     const handleStartSpam = async () => {
-        if (!selectedGroup) return showToast('Selectionnez un groupe !', 'danger');
+        if (!selectedGroup) return showToast(isFr ? 'Sélectionnez un groupe !' : 'Select a group!', 'danger');
         const nameList = names.split('\n').filter((n: string) => n.trim() !== '');
-        if (nameList.length === 0) return showToast('Entrez au moins un nom !', 'danger');
+        if (nameList.length === 0) return showToast(isFr ? 'Entrez au moins un nom !' : 'Enter at least one name!', 'danger');
+
+        const accountsToUse = settings.accounts.filter(acc => selectedAccounts.includes(acc.id));
+        if (accountsToUse.length === 0) {
+            return showToast(isFr ? 'Sélectionnez au moins un token !' : 'Select at least one token!', 'danger');
+        }
 
         setIsRenaming(true);
         try {
             const res = await (window as any).electronAPI.startGroupRename({
                 channelId: selectedGroup,
                 names: nameList,
-                delay
+                delay,
+                accounts: accountsToUse
             });
             if (!res.success) {
-                showToast(res.error || 'Erreur inconnue', 'danger');
+                showToast(res.error || (isFr ? 'Erreur inconnue' : 'Unknown error'), 'danger');
                 setIsRenaming(false);
             }
         } catch (e: any) {
@@ -252,11 +287,11 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                 await (window as any).electronAPI.stopSentinel();
                 setIsSentinelActive(false);
                 setPartnerTag(null);
-                showToast('Protection Sentinel desactivee.', 'success');
+                showToast(isFr ? 'Protection Sentinel désactivée.' : 'Sentinel protection disabled.', 'success');
             } catch (e) {}
         } else {
-            if (!partnerToken) return showToast('Entrez un token partenaire !', 'danger');
-            if (protectedGroups.length === 0) return showToast('Selectionnez au moins un groupe !', 'danger');
+            if (!partnerToken) return showToast(isFr ? 'Entrez un token partenaire !' : 'Enter a partner token!', 'danger');
+            if (protectedGroups.length === 0) return showToast(isFr ? 'Sélectionnez au moins un groupe !' : 'Select at least one group!', 'danger');
 
             setIsConnectingSentinel(true);
             try {
@@ -271,9 +306,9 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                     setIsSentinelActive(true);
                     const status = await (window as any).electronAPI.sentinelStatus();
                     if (status.success) setPartnerTag(status.data.partner);
-                    showToast('SENTINEL ACTIVEE !', 'success');
+                    showToast(isFr ? 'SENTINEL ACTIVÉE !' : 'SENTINEL ACTIVATED!', 'success');
                 } else {
-                    showToast(res?.error || 'Erreur de connexion', 'danger');
+                    showToast(res?.error || (isFr ? 'Erreur de connexion' : 'Connection error'), 'danger');
                 }
             } catch (e: any) {
                 setIsConnectingSentinel(false);
@@ -297,7 +332,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
         try {
             const res = await (window as any).electronAPI.toggleSentinelShield(id, !isCurrentlyShielded);
             if (!res.success) {
-                showToast(res.error || 'Erreur Bouclier', 'danger');
+                showToast(res.error || (isFr ? 'Erreur Bouclier' : 'Shield error'), 'danger');
                 // Revert UI state if error
                 setShieldedGroups((prev: string[]) => 
                     isCurrentlyShielded ? [...prev, id] : prev.filter((x: string) => x !== id)
@@ -314,10 +349,10 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
         try {
             const res = await (window as any).electronAPI.cloneGroup(id);
             if (res.success) {
-                showToast('Groupe clone avec succes !', 'success');
+                showToast(isFr ? 'Groupe cloné avec succès !' : 'Group cloned successfully!', 'success');
                 loadGroups();
             } else {
-                showToast(res.error || 'Echec du clonage', 'danger');
+                showToast(res.error || (isFr ? 'Échec du clonage' : 'Cloning failed'), 'danger');
             }
         } catch (e: any) {
             showToast(e.message, 'danger');
@@ -327,7 +362,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
     };
 
     const handleMassAdd = async (userIds: string[]) => {
-        if (!selectedMassAddGroup) return showToast('Selectionnez un groupe !', 'danger');
+        if (!selectedMassAddGroup) return showToast(isFr ? 'Sélectionnez un groupe !' : 'Select a group!', 'danger');
         if (userIds.length === 0) return;
 
         setIsMassAdding(true);
@@ -339,9 +374,9 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                 massAddDelay
             );
             if (res.success) {
-                showToast(`${res.count} amis ajoutes !`, 'success');
+                showToast(isFr ? `${res.count} amis ajoutés !` : `${res.count} friends added!`, 'success');
             } else {
-                showToast(res.error || 'Echec du Mass Add', 'danger');
+                showToast(res.error || (isFr ? 'Échec du Mass Add' : 'Mass Add failed'), 'danger');
             }
         } catch (e: any) {
             showToast(e.message, 'danger');
@@ -359,24 +394,10 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
             style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
             className="custom-scrollbar"
         >
-            {/* Header Restaure */}
-            <div style={{ padding: '30px', display: 'flex', gap: '20px', alignItems: 'center' }}>
-                <div style={{ padding: '15px', background: 'rgba(255, 100, 0, 0.1)', borderRadius: '15px', color: '#ff7b00', border: '1px solid rgba(255,100,0,0.2)', boxShadow: '0 0 20px rgba(255, 123, 0, 0.1)' }}>
-                    <Users size={28} />
-                </div>
-                <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: '900', color: 'white', letterSpacing: '0.5px' }}>Group Pro (Management)</h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
-                        <ShieldCheck size={12} color="var(--accent)" />
-                        <p style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '900', letterSpacing: '1px' }}>PROTOCOLE DE PERSISTANCE ET DOMINATION</p>
-                    </div>
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '30px', padding: '0 30px 30px 30px' }}>
+            <div className="hub-raid-grid custom-scrollbar">
                 
                 {/* Section 1: Group Name Spammer */}
-                <div className="glass-card" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="glass-card hub-section-glow" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px', '--hub-glow': 'var(--accent)' } as React.CSSProperties}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{ padding: '6px', background: 'rgba(var(--accent-rgb), 0.1)', borderRadius: '8px' }}>
@@ -384,25 +405,77 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                             </div>
                             <span style={{ fontWeight: '900', color: 'var(--accent)', fontSize: '12px', letterSpacing: '1px' }}>GROUP NAME SPAMMER</span>
                         </div>
-                        {isRenaming && <span className="badge-nitro" style={{ fontSize: '10px' }}>RUNNING</span>}
+                        {isRenaming && <span className="badge-nitro" style={{ fontSize: '10px' }}>{isFr ? 'ACTIF' : 'RUNNING'}</span>}
                     </div>
                     <p style={{ fontSize: '11px', opacity: 0.5, lineHeight: '1.5', marginTop: '-10px', marginBottom: '10px' }}>
-                        Modifiez le nom de votre groupe à haute frequence pour saturer les notifications des membres.
+                        {isFr ? 'Modifiez le nom de votre groupe à haute fréquence pour saturer les notifications des membres.' : 'Modify the name of your group at high frequency to flood member notifications.'}
                     </p>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ fontSize: '10px', fontWeight: '900', display: 'block', opacity: 0.4, letterSpacing: '1px' }}>SÉLECTIONNER LE GROUPE</label>
+                        <label style={{ fontSize: '10px', fontWeight: '900', display: 'block', opacity: 0.4, letterSpacing: '1px' }}>{isFr ? 'SÉLECTIONNER LE GROUPE' : 'SELECT GROUP'}</label>
                         <GroupDropdown 
                             groups={groups} 
                             selectedId={selectedGroup} 
                             onSelect={setSelectedGroup} 
                             onRefresh={loadGroups}
-                            placeholder="Sélectionner le groupe cible..." 
+                            placeholder={isFr ? "Sélectionner le groupe cible..." : "Select target group..."} 
                         />
                     </div>
 
+                    {/* Token Selection */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '900', display: 'block', opacity: 0.4, letterSpacing: '1px' }}>
+                                {isFr ? `SÉLECTION DES TOKENS (${selectedAccounts.length})` : `TOKEN SELECTION (${selectedAccounts.length})`}
+                            </label>
+                            <button 
+                                type="button" 
+                                onClick={() => setSelectedAccounts(settings.accounts?.map(acc => acc.id) || [])} 
+                                className="btn-secondary" 
+                                style={{ padding: '2px 8px', fontSize: '8px', height: '18px', borderRadius: '4px' }}
+                            >
+                                {isFr ? 'TOUS LES TOKENS' : 'ALL TOKENS'}
+                            </button>
+                        </div>
+                        <div style={{ maxHeight: '90px', overflowY: 'auto', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', padding: '10px', border: '1px solid var(--border)' }} className="custom-scrollbar">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                {settings.accounts?.map(acc => (
+                                    <div 
+                                        key={acc.id} 
+                                        onClick={() => {
+                                            setSelectedAccounts(prev => prev.includes(acc.id) ? prev.filter(a => a !== acc.id) : [...prev, acc.id]);
+                                        }}
+                                        style={{ 
+                                            padding: '6px 10px', 
+                                            background: selectedAccounts.includes(acc.id) ? 'rgba(0, 210, 255, 0.1)' : 'rgba(255,255,255,0.01)', 
+                                            border: `1px solid ${selectedAccounts.includes(acc.id) ? 'var(--accent)' : 'var(--border)'}`,
+                                            borderRadius: '6px',
+                                            fontSize: '10px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            transition: '0.2s',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: selectedAccounts.includes(acc.id) ? 'var(--accent)' : 'var(--text-dim)', flexShrink: 0 }}></div>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acc.username}</span>
+                                    </div>
+                                ))}
+                                {(!settings.accounts || settings.accounts.length === 0) && (
+                                    <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '6px', opacity: 0.4, fontSize: '9px' }}>
+                                        {isFr ? "Aucun compte configuré." : "No accounts configured."}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                     <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '10px', fontWeight: '900', display: 'block', marginBottom: '8px', opacity: 0.4, letterSpacing: '1px' }}>LISTE DES NOMS (UN PAR LIGNE)</label>
+                        <label style={{ fontSize: '10px', fontWeight: '900', display: 'block', marginBottom: '8px', opacity: 0.4, letterSpacing: '1px' }}>{isFr ? 'LISTE DES NOMS (UN PAR LIGNE)' : 'NAMES LIST (ONE PER LINE)'}</label>
                         <textarea 
                             value={names}
                             onChange={(e) => setNames(e.target.value)}
@@ -416,11 +489,11 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                         <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: '900' }}>VITESSE (MS)</span>
+                                <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: '900' }}>{isFr ? 'VITESSE (MS)' : 'SPEED (MS)'}</span>
                                 <span style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: '900' }}>{delay}ms</span>
                             </div>
                             <input 
-                                type="range" min="100" max="10000" step="100"
+                                type="range" min="1" max="10000" step="1"
                                 value={delay} onChange={(e) => setDelay(Number(e.target.value))}
                                 style={{ width: '100%', accentColor: 'var(--accent)' }}
                             />
@@ -437,13 +510,13 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                              }}
                         >
                             <Zap size={16} fill={isRenaming ? 'none' : 'currentColor'} />
-                            <span style={{ marginLeft: '10px', fontWeight: '900' }}>{isRenaming ? 'ARRÊTER' : 'LANCER'}</span>
+                            <span style={{ marginLeft: '10px', fontWeight: '900' }}>{isRenaming ? (isFr ? 'ARRÊTER' : 'STOP') : (isFr ? 'LANCER' : 'START')}</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Section 2: Anti-Kick Duo (Sentinel) */}
-                <div className="glass-card" style={{ padding: '25px', border: '1px solid rgba(255, 68, 68, 0.1)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="glass-card hub-section-glow" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px', '--hub-glow': '#ff4444' } as React.CSSProperties}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{ padding: '6px', background: 'rgba(255, 68, 68, 0.1)', borderRadius: '8px' }}>
@@ -459,21 +532,21 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                         }}></div>
                     </div>
                     <p style={{ fontSize: '11px', opacity: 0.5, lineHeight: '1.5', marginTop: '-10px' }}>
-                        Protegez vos groupes contre les kicks. Si un compte est ejecte, le partenaire le ré-invite <span style={{ color: '#ff4444', fontWeight: '900' }}>instantanement</span>.
+                        {isFr ? 'Protégez vos groupes contre les kicks. Si un compte est éjecté, le partenaire le ré-invite' : 'Protect your groups from kicks. If an account is kicked, the partner re-invites it'} <span style={{ color: '#ff4444', fontWeight: '900' }}>{isFr ? 'instantanément' : 'instantly'}</span>.
                     </p>
 
                     {!settings.sentinelEnabled ? (
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '15px', opacity: 0.6 }}>
                             <AlertTriangle size={36} color="#ff4444" />
-                            <p style={{ fontSize: '12px', padding: '0 20px' }}>Sentinel Mode est désactivé dans les paramètres globaux.</p>
-                            <button className="btn-secondary" style={{ fontSize: '10px', padding: '10px 20px' }} onClick={() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'Settings' }))}>ALLER AUX RÉGLAGES</button>
+                            <p style={{ fontSize: '12px', padding: '0 20px' }}>{isFr ? 'Sentinel Mode est désactivé dans les paramètres globaux.' : 'Sentinel Mode is disabled in global settings.'}</p>
+                            <button className="btn-secondary" style={{ fontSize: '10px', padding: '10px 20px' }} onClick={() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'Settings' }))}>{isFr ? 'ALLER AUX RÉGLAGES' : 'GO TO SETTINGS'}</button>
                         </div>
                     ) : (
                         <>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '14px', border: '1px solid var(--border)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px' }}>TOKEN DU COMPTE PARTENAIRE</label>
+                                        <label style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px' }}>{isFr ? 'TOKEN DU COMPTE PARTENAIRE' : 'PARTNER ACCOUNT TOKEN'}</label>
                                         
                                         {/* Quick Alt Selector */}
                                         <div style={{ display: 'flex', gap: '5px' }}>
@@ -484,7 +557,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                                     <div 
                                                         key={acc.id}
                                                         onClick={() => setPartnerToken(acc.token)}
-                                                        title={`Utiliser ${acc.username}`}
+                                                        title={isFr ? `Utiliser ${acc.username}` : `Use ${acc.username}`}
                                                         style={{ 
                                                             width: '24px', height: '24px', borderRadius: '6px', overflow: 'hidden', 
                                                             border: `1px solid ${partnerToken === acc.token ? 'var(--accent)' : 'transparent'}`,
@@ -511,13 +584,13 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '15px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <label style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px' }}>GROUPES PROTÉGÉS ({protectedGroups.length})</label>
+                                            <label style={{ fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px' }}>{isFr ? `GROUPES PROTÉGÉS (${protectedGroups.length})` : `PROTECTED GROUPS (${protectedGroups.length})`}</label>
                                         </div>
                                         <div style={{ position: 'relative', flex: 1, maxWidth: '200px' }}>
                                             <Search size={10} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
                                             <input 
                                                 type="text" 
-                                                placeholder="RECHERCHER..." 
+                                                placeholder={isFr ? "RECHERCHER..." : "SEARCH..."} 
                                                 value={groupSearchTerm}
                                                 onChange={(e) => setGroupSearchTerm(e.target.value)}
                                                 style={{ 
@@ -544,14 +617,14 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                                 color: isRefreshingSentinel ? 'var(--accent)' : 'rgba(255,255,255,0.4)',
                                                 transition: '0.3s'
                                             }}
-                                            title="Actualiser les groupes"
+                                            title={isFr ? "Actualiser les groupes" : "Refresh groups"}
                                         >
                                             <RefreshCw size={14} className={isRefreshingSentinel ? "spin-animation" : ""} />
                                         </button>
                                     </div>
                                     <div style={{ height: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid var(--border)', padding: '8px' }} className="custom-scrollbar">
                                         {(groups || []).length === 0 ? (
-                                            <div style={{ padding: '30px 20px', textAlign: 'center', opacity: 0.3, fontSize: '11px' }}>Aucun DM de groupe detecte</div>
+                                            <div style={{ padding: '30px 20px', textAlign: 'center', opacity: 0.3, fontSize: '11px' }}>{isFr ? "Aucun DM de groupe détecté" : "No group DMs detected"}</div>
                                         ) : groups
                                             .filter(g => g.name.toLowerCase().includes(groupSearchTerm.toLowerCase()))
                                             .map(g => (
@@ -577,7 +650,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                                     {protectedGroups.includes(g.id) && (
                                                         <input 
                                                             type="text"
-                                                            placeholder="Lien d'invitation (optionnel)"
+                                                            placeholder={isFr ? "Lien d'invitation (optionnel)" : "Invitation link (optional)"}
                                                             value={groupLinks[g.id] || ''}
                                                             onChange={(e) => setGroupLinks({...groupLinks, [g.id]: e.target.value})}
                                                             style={{ 
@@ -608,7 +681,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                     }}
                                 >
                                     {isConnectingSentinel ? <RefreshCw className="animate-spin" size={16} /> : (isSentinelActive ? <Trash2 size={16} /> : <Zap size={16} />)}
-                                    <span style={{ marginLeft: '10px', fontWeight: '900' }}>{isSentinelActive ? 'ARRÊTER LA SENTINELLE' : 'DÉMARRER LA SENTINELLE'}</span>
+                                    <span style={{ marginLeft: '10px', fontWeight: '900' }}>{isSentinelActive ? (isFr ? 'ARRÊTER LA SENTINELLE' : 'STOP SENTINEL') : (isFr ? 'DÉMARRER LA SENTINELLE' : 'START SENTINEL')}</span>
                                 </button>
                                 
                                 <AnimatePresence>
@@ -623,7 +696,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                                 <div style={{ position: 'absolute', bottom: 0, right: 0, width: 6, height: 6, background: '#23a55a', borderRadius: '50%', border: '1px solid #000' }}></div>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <span style={{ color: '#ff4444', fontSize: '10px', fontWeight: '900' }}>PARTENAIRE CONNECTÉ</span>
+                                                <span style={{ color: '#ff4444', fontSize: '10px', fontWeight: '900' }}>{isFr ? 'PARTENAIRE CONNECTÉ' : 'PARTNER CONNECTED'}</span>
                                                 <span style={{ color: 'white', fontSize: '11px', fontWeight: '700' }}>{partnerTag}</span>
                                             </div>
                                             <Activity size={14} color="#ff4444" className="animate-pulse" style={{ marginLeft: 'auto' }} />
@@ -636,29 +709,29 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                 </div>
 
                 {/* Section 3: Advanced Tools */}
-                <div className="glass-card" style={{ gridColumn: 'span 2', padding: '25px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div className="glass-card hub-section-glow" style={{ gridColumn: 'span 2', padding: '25px', display: 'flex', flexDirection: 'column', gap: '25px', '--hub-glow': 'var(--accent)' } as React.CSSProperties}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ padding: '6px', background: 'rgba(var(--accent-rgb), 0.1)', borderRadius: '8px' }}>
                             <Zap size={18} color="var(--accent)" />
                         </div>
-                        <span style={{ fontWeight: '900', color: 'var(--accent)', fontSize: '12px', letterSpacing: '1px' }}>OUTILS AVANCES (GROUP TOOLS)</span>
+                        <span style={{ fontWeight: '900', color: 'var(--accent)', fontSize: '12px', letterSpacing: '1px' }}>{isFr ? 'OUTILS AVANCÉS (GROUP TOOLS)' : 'ADVANCED TOOLS (GROUP TOOLS)'}</span>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px' }}>
                         {/* Cloner */}
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div className="glass-card hub-section-glow" style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', display: 'flex', flexDirection: 'column', gap: '15px', '--hub-glow': 'var(--accent)' } as React.CSSProperties}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <Copy size={16} color="var(--accent)" />
                                 <span style={{ fontSize: '12px', fontWeight: '900' }}>GROUP CLONER</span>
                             </div>
                             <p style={{ fontSize: '10px', opacity: 0.5, lineHeight: '1.4' }}>
-                                Dupliquez ce groupe dans une nouvelle conversation avec tous vos amis membres.
+                                {isFr ? 'Dupliquez ce groupe dans une nouvelle conversation avec tous vos amis membres.' : 'Duplicate this group in a new conversation with all your member friends.'}
                             </p>
                             <GroupDropdown 
                                 groups={groups} 
                                 selectedId={selectedGroup} 
                                 onSelect={setSelectedGroup} 
-                                placeholder="Groupe source..." 
+                                placeholder={isFr ? "Groupe source..." : "Source group..."} 
                             />
                             <button 
                                 onClick={() => handleCloneGroup(selectedGroup)}
@@ -666,29 +739,29 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                 className="btn-secondary" 
                                 style={{ height: '40px', width: '100%', fontSize: '10px', fontWeight: '900' }}
                             >
-                                {isCloning ? 'CLONAGE EN COURS...' : 'CLONER LE GROUPE'}
+                                {isCloning ? (isFr ? 'CLONAGE EN COURS...' : 'CLONING...') : (isFr ? 'CLONER LE GROUPE' : 'CLONE GROUP')}
                             </button>
                         </div>
 
                         {/* Mass Add */}
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div className="glass-card hub-section-glow" style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', display: 'flex', flexDirection: 'column', gap: '15px', '--hub-glow': 'var(--accent)' } as React.CSSProperties}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <UserPlus size={14} color="var(--accent)" />
                                 <span style={{ fontSize: '11px', fontWeight: '900' }}>MASS ADD (FRIENDS)</span>
                             </div>
                             <p style={{ fontSize: '10px', opacity: 0.5, lineHeight: '1.4' }}>
-                                Ajoutez massivement vos amis a ce groupe avec un delai de securite ajustable.
+                                {isFr ? 'Ajoutez massivement vos amis à ce groupe avec un délai de sécurité ajustable.' : 'Mass add your friends to this group with an adjustable safety delay.'}
                             </p>
                             <GroupDropdown 
                                 groups={groups} 
                                 selectedId={selectedMassAddGroup} 
                                 onSelect={setSelectedMassAddGroup} 
-                                placeholder="Groupe cible..." 
+                                placeholder={isFr ? "Groupe cible..." : "Target group..."} 
                             />
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                        <span style={{ fontSize: '9px', opacity: 0.5, fontWeight: '900' }}>VITESSE (MS)</span>
+                                        <span style={{ fontSize: '9px', opacity: 0.5, fontWeight: '900' }}>{isFr ? 'VITESSE (MS)' : 'SPEED (MS)'}</span>
                                         <span style={{ fontSize: '9px', color: 'var(--accent)', fontWeight: '900' }}>{massAddDelay}ms</span>
                                     </div>
                                     <input 
@@ -706,25 +779,25 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                     className="btn-primary" 
                                     style={{ height: '35px', padding: '0 20px', fontSize: '10px' }}
                                 >
-                                    {isMassAdding ? 'AJOUT...' : 'CHOISIR AMIS'}
+                                    {isMassAdding ? (isFr ? 'AJOUT...' : 'ADDING...') : (isFr ? 'CHOISIR AMIS' : 'CHOOSE FRIENDS')}
                                 </button>
                             </div>
                         </div>
 
                         {/* Dedicated Group Shield Module */}
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div className="glass-card hub-section-glow" style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '15px', display: 'flex', flexDirection: 'column', gap: '15px', '--hub-glow': 'var(--accent)' } as React.CSSProperties}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <Lock size={16} color="var(--accent)" />
                                 <span style={{ fontSize: '12px', fontWeight: '900' }}>GROUP SHIELD (LOCK)</span>
                             </div>
                             <p style={{ fontSize: '10px', opacity: 0.5, lineHeight: '1.4' }}>
-                                Verrouillez les metadonnees (Nom/Icone) pour empêcher toute modification.
+                                {isFr ? 'Verrouillez les métadonnées (Nom/Icône) pour empêcher toute modification.' : 'Lock metadata (Name/Icon) to prevent any modifications.'}
                             </p>
                             <GroupDropdown 
                                 groups={groups} 
                                 selectedId={selectedShieldGroup} 
                                 onSelect={setSelectedShieldGroup} 
-                                placeholder="Groupe a proteger..." 
+                                placeholder={isFr ? "Groupe à protéger..." : "Group to protect..."} 
                             />
                             <button 
                                 onClick={() => handleToggleShield(selectedShieldGroup)}
@@ -737,7 +810,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                                     border: shieldedGroups.includes(selectedShieldGroup) ? '1px solid var(--accent)' : 'none'
                                 }}
                             >
-                                {shieldedGroups.includes(selectedShieldGroup) ? 'DEVERROUILLER' : 'VERROUILLER LE GROUPE'}
+                                {shieldedGroups.includes(selectedShieldGroup) ? (isFr ? 'DÉVERROUILLER' : 'UNLOCK') : (isFr ? 'VERROUILLER LE GROUPE' : 'LOCK GROUP')}
                             </button>
                         </div>
                     </div>
@@ -746,7 +819,7 @@ export const GroupSystem = ({ showToast }: { showToast: (m: string, t: 'success'
                 <SelectionModal
                     isOpen={showMassAddModal}
                     onClose={() => setShowMassAddModal(false)}
-                    title={`Ajouter au groupe (${friends.length} amis)`}
+                    title={isFr ? `Ajouter au groupe (${friends.length} amis)` : `Add to group (${friends.length} friends)`}
                     type="friends"
                     items={friends.map((f: any) => ({ id: f.id, name: f.username, avatar: f.avatar }))}
                     onConfirm={handleMassAdd}

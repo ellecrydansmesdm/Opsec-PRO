@@ -12,7 +12,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     autoLogin: false, 
     silentMode: true, 
     privateMode: false,
-    language: 'fr', 
+    language: 'en', 
     adminPurge: false, 
     purgeDelay: 1000,
     spotifyCookie: '',
@@ -22,8 +22,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     themeOpacity: 0.8,
     allowActiveAppDetection: false,
     accounts: [],
+    nitroStartDate: null,
+    boostStartDate: null,
     farmerConfig: {
       enabled: false,
+      selectedAccountIds: [],
       vocalHopper: {
         enabled: false,
         channelIds: [],
@@ -63,7 +66,15 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       giveawayJoiner: {
         enabled: false,
         delay: 5000
-      }
+      },
+      capMonsterKey: '',
+      twoCaptchaKey: '',
+      antiCaptchaKey: '',
+      capsolverKey: '',
+      noCaptchaAIKey: '',
+      proxyEnabled: false,
+      proxyType: 'http',
+      proxyList: []
     }
   },
   setSettings: (settings) => set({ settings }),
