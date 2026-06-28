@@ -70,9 +70,10 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, VITE_DEV_SERVER_URL ? 'preload.js' : 'preload-loader.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      devTools: !!VITE_DEV_SERVER_URL,
       autoplayPolicy: 'no-user-gesture-required'
     },
   });
@@ -81,6 +82,18 @@ function createWindow() {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow?.webContents.closeDevTools();
+    });
+    mainWindow.webContents.on('before-input-event', (_event, input) => {
+      const key = input.key.toLowerCase();
+      if (input.control && input.shift && (key === 'i' || key === 'j' || key === 'c')) {
+        _event.preventDefault();
+      }
+      if (key === 'f12') {
+        _event.preventDefault();
+      }
+    });
   }
   
   // mainWindow.webContents.openDevTools();

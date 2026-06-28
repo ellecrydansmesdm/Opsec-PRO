@@ -9,8 +9,7 @@
     "build:client": "tsc && vite build",
     "build:electron": "npx esbuild electron/main.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/main.js && npx esbuild electron/preload.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/preload.js",
     "build": "echo Opsec PRO Release && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron",
-    "postbuild": "node scripts/compile-bytecode.js",
-    "obfuscate": "javascript-obfuscator dist-electron --output dist-electron --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75 && javascript-obfuscator dist/assets --output dist/assets --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75",
+    "obfuscate": "node scripts/obfuscate-renderer.js",
     "dist": "npm run build && npm run obfuscate && node scripts/compile-bytecode.js --clean && electron-builder",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -37,14 +36,24 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/**/*.map",
       "dist-electron/main-loader.js",
       "dist-electron/main.jsc",
-      "dist-electron/preload.js",
+      "dist-electron/preload-loader.js",
+      "dist-electron/preload.jsc",
       "assets/**/*",
       "public/**/*",
       "node_modules/**/*",
+      "!node_modules/**/*.map",
+      "!node_modules/**/*.ts",
+      "!node_modules/**/src/**",
+      "!node_modules/**/test/**",
+      "!node_modules/**/tests/**",
+      "!node_modules/**/__tests__/**",
+      "!node_modules/**/*.md",
       "package.json"
-    ]
+    ],
+    "afterPack": "./scripts/after-pack.js"
   },
   "keywords": [
     "discord",
