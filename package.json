@@ -32,7 +32,18 @@
     "win": {
       "target": [
         "nsis"
+      ],
+      "publisherName": "Opsec PRO",
+      "signingHashAlgorithms": [
+        "sha256"
       ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Opsec PRO",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     },
     "files": [
       "dist/**/*",
