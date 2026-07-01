@@ -396,7 +396,14 @@ function App() {
       
       {requiresLicense ? (
         <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-          <LicenseScreen onSuccess={() => { setRequiresLicense(false); setAuthenticated(false); }} />
+          <LicenseScreen onSuccess={async () => { 
+            const settingsRes = await window.electronAPI.getSettings();
+            if (settingsRes.success && settingsRes.data) {
+              setSettings(settingsRes.data);
+            }
+            setRequiresLicense(false); 
+            setAuthenticated(false); 
+          }} />
         </div>
       ) : !isAuthenticated ? (
         <LoginScreen onLogin={(userData) => { setUser(userData); setAuthenticated(true); }} />
