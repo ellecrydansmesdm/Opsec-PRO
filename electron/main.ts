@@ -10,6 +10,20 @@ import { setupIpcHandlers } from './ipc/handlers';
 
 dotenv.config();
 
+// SINGLE INSTANCE LOCK: Prevent duplicate background processes corrupting settings
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
 // GPU stability flags — prevent black screen crashes on some Windows GPU configurations
 // Must be set before app.whenReady()
 app.commandLine.appendSwitch('disable-gpu-sandbox');
