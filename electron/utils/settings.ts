@@ -126,6 +126,13 @@ export function saveSettings(settings: AppSettings) {
     try {
         const settingsCopy = JSON.parse(JSON.stringify(settings));
         
+        console.log('[SETTINGS] Writing to disk:', {
+          hasKey: !!settingsCopy.licenseKey,
+          licenseValidated: settingsCopy.licenseValidated,
+          licenseKey: settingsCopy.licenseKey
+        });
+        console.trace('[SETTINGS] Call stack:');
+
         // Encrypt all account tokens before saving
         if (settingsCopy.accounts && Array.isArray(settingsCopy.accounts)) {
             settingsCopy.accounts = settingsCopy.accounts.map((acc: any) => {
