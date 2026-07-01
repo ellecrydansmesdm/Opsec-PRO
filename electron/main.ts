@@ -10,6 +10,13 @@ import { setupIpcHandlers } from './ipc/handlers';
 
 dotenv.config();
 
+// GPU stability flags — prevent black screen crashes on some Windows GPU configurations
+// Must be set before app.whenReady()
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+
 // MUST register schemes before app is ready
 protocol.registerSchemesAsPrivileged([
   {
@@ -70,7 +77,7 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
-      preload: path.join(__dirname, VITE_DEV_SERVER_URL ? 'preload.js' : 'preload-loader.js'),
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       devTools: !!VITE_DEV_SERVER_URL,
@@ -95,8 +102,6 @@ function createWindow() {
       }
     });
   }
-  
-  // mainWindow.webContents.openDevTools();
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();

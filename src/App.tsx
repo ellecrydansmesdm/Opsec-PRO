@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoadingScreen } from '@/components/auth/LoadingScreen';
+import { LicenseScreen } from '@/components/auth/LicenseScreen';
 import { FullScreenBackground } from '@/components/ui/FullScreenBackground';
 import { LogsDock } from '@/components/layout/LogsDock';
 import { AccountSwitcher } from '@/components/ui/AccountSwitcher';
@@ -56,6 +57,7 @@ function App() {
   const [confirmData, setConfirmData] = useState<any>({ isOpen: false });
   const [isInitializing, setIsInitializing] = useState(true);
   const [isReady, setIsReady] = useState(false);
+  const [requiresLicense, setRequiresLicense] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false);
 
@@ -271,6 +273,17 @@ function App() {
     const initApp = async () => {
       console.log("[OPSEC] Initializing Application...");
       try {
+        // 1. ALWAYS Check License First
+        const authRes = await window.electronAPI.checkAuth();
+        if (authRes.success && authRes.data?.requireLicense) {
+          console.log('[OPSEC] No valid license, redirecting to license screen');
+          setRequiresLicense(true);
+          setAuthenticated(false);
+          setIsInitializing(false);
+          return; // Stop init here, wait for user to enter license
+        }
+
+        // 2. If License is OK, load settings
         const settingsRes = await window.electronAPI.getSettings();
         console.log("[OPSEC] Settings Load Result:", settingsRes.success ? "SUCCESS" : "FAILED");
         
@@ -307,18 +320,19 @@ function App() {
           }
         }
 
-        // Fallback: Check if already authenticated at session level
-        const authRes = await window.electronAPI.checkAuth();
+        // 3. Fallback: Session might already be active on backend
         if (authRes.success && authRes.data?.authenticated && authRes.data.user) {
-          console.log("[OPSEC] Session authenticated from previous state");
+          console.log('[OPSEC] Session authenticated from previous state');
           setUser(authRes.data.user);
           setAuthenticated(true);
         } else {
-          console.log("[OPSEC] No active session, redirecting to login");
+          console.log('[OPSEC] No active session, redirecting to login');
+          setRequiresLicense(false);
           setAuthenticated(false);
         }
       } catch (err) {
         console.error("[OPSEC] Init error:", err);
+        setRequiresLicense(false);
         setAuthenticated(false);
       } finally {
         setIsInitializing(false);
@@ -380,7 +394,11 @@ function App() {
       <FullScreenBackground />
       <TitleBar />
       
-      {!isAuthenticated ? (
+      {requiresLicense ? (
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+          <LicenseScreen onSuccess={() => { setRequiresLicense(false); setAuthenticated(false); }} />
+        </div>
+      ) : !isAuthenticated ? (
         <LoginScreen onLogin={(userData) => { setUser(userData); setAuthenticated(true); }} />
       ) : (
         <div className="app-container" style={{ flex: 1, display: 'flex', overflow: 'hidden', paddingTop: 0 }}>
