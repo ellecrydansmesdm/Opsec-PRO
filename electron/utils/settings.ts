@@ -3,6 +3,9 @@ import path from 'path';
 import { app, safeStorage } from 'electron';
 import { AppSettings } from '../../shared/types';
 
+// Ensure the app name is explicitly set so userData is always %APPDATA%\opsec-pro
+app.name = 'opsec-pro';
+
 export const defaultSettings: AppSettings = {
     autoLogin: false,
     licenseKey: '',
@@ -124,7 +127,16 @@ export function getSettings(): AppSettings {
 export function saveSettings(settings: AppSettings) {
     const configPath = getConfigPath();
     try {
-        const settingsCopy = JSON.parse(JSON.stringify(settings));
+        // Always read from disk first and merge to prevent partial writes from overwriting other parameters
+        let diskSettings = {};
+        if (fs.existsSync(configPath)) {
+            try {
+                diskSettings = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            } catch (_) {}
+        }
+        
+        const mergedSettings = { ...diskSettings, ...settings };
+        const settingsCopy = JSON.parse(JSON.stringify(mergedSettings));
         
         console.log('[SETTINGS] Writing to disk:', {
           hasKey: !!settingsCopy.licenseKey,
@@ -138,7 +150,7 @@ export function saveSettings(settings: AppSettings) {
                 if (acc && acc.token) {
                     acc.token = encryptToken(acc.token);
                 }
-                return acc;
+                return copyForEncryption(acc);
             });
         }
 
@@ -146,4 +158,9 @@ export function saveSettings(settings: AppSettings) {
     } catch (e) {
         console.error('[settings] Save error:', e);
     }
+}
+
+function copyForEncryption(acc: any) {
+    const copy = { ...acc };
+    return copy;
 }

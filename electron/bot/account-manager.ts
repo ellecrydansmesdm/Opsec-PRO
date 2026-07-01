@@ -148,10 +148,8 @@ export class AccountManager {
 
     private save() {
         try {
-            const currentRaw = fs.existsSync(this.configPath) 
-                ? fs.readFileSync(this.configPath, 'utf-8')
-                : '{}';
-            const currentData = JSON.parse(currentRaw);
+            const { getSettings } = require('../utils/settings');
+            const currentSettings = getSettings();
             
             // Get currently selected ID for global field
             const selected = this.getSelectedAccount();
@@ -166,9 +164,9 @@ export class AccountManager {
             });
             
             const newData = {
-                ...currentData,
+                ...currentSettings,
                 accounts: encryptedAccounts,
-                lastActiveAccountId: selected?.id || currentData.lastActiveAccountId
+                lastActiveAccountId: selected?.id || currentSettings.lastActiveAccountId
             };
             
             fs.writeFileSync(this.configPath, JSON.stringify(newData, null, 2));

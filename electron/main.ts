@@ -10,6 +10,9 @@ import { setupIpcHandlers } from './ipc/handlers';
 
 dotenv.config();
 
+// Ensure the app name is explicitly set so userData is always %APPDATA%\opsec-pro
+app.name = 'opsec-pro';
+
 // SINGLE INSTANCE LOCK: Prevent duplicate background processes corrupting settings
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
