@@ -98,6 +98,46 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
     setPurging(false);
   };
 
+  const handlePurgeServer = async () => {
+    if (purging) {
+      audioService.play('module_stop');
+      await window.electronAPI.stopPurge();
+      setPurging(false);
+      return;
+    }
+    
+    if (!validateTarget(purgeChannelId, 'Server Purge')) return;
+    
+    // Check if the id provided is a guild/server ID
+    // We assume if it's longer than a certain amount it might be valid, or we let the backend validate
+    if (!amount || amount <= 0) {
+      audioService.play('log_error_critical');
+      showToast(isFr ? 'Veuillez spécifier un nombre de messages à supprimer !' : 'Please specify a number of messages to delete!', 'danger');
+      return;
+    }
+
+    onConfirm({
+      isOpen: true,
+      title: isFr ? "Purge de Serveur Entier" : "Entire Server Purge",
+      message: isFr 
+        ? "Voulez-vous VRAIMENT purger tous les salons de ce serveur ? Cette action peut prendre du temps."
+        : "Do you REALLY want to purge all channels in this server? This action can take time.",
+      onConfirm: async () => {
+        audioService.play('module_launch');
+        setPurging(true);
+        localStorage.setItem('lastPurgeChannel', purgeChannelId);
+        await window.electronAPI.startPurgeServer({ 
+            serverId: purgeChannelId, 
+            amount, 
+            purgeAll: settings.adminPurge, 
+            delay: purgeDelay 
+        });
+        audioService.play('module_complete');
+        setPurging(false);
+      }
+    });
+  };
+
   const handleStopSanitizer = async () => {
     audioService.play('sanitizer_user_interrupt');
     await window.electronAPI.stopSanitizer();
@@ -297,9 +337,9 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
             </div>
             <input 
               type="range" 
-              min="100" 
+              min="0" 
               max="5000" 
-              step="100" 
+              step="50" 
               value={purgeDelay} 
               onChange={(e) => setPurgeDelay(parseInt(e.target.value))} 
               style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer', boxSizing: 'border-box' }} 
@@ -314,31 +354,52 @@ export const Modules = ({ onConfirm }: ModulesProps) => {
           <HubToggleRow
             title="Admin Purge"
             description={settings.adminPurge 
-              ? (isFr ? "Supprime TOUS les messages du salon (permission Gérer les messages requise)" : "Deletes ALL messages from the channel (Manage Messages permission required)") 
+              ? (isFr ? "Supprime TOUS les messages du salon (y compris ceux des autres)" : "Deletes ALL messages from the channel (including others)") 
               : (isFr ? "Supprime uniquement VOS messages (plus sûr)" : "Only deletes YOUR messages (safer)")}
             active={settings.adminPurge}
             onToggle={() => updateSetting('adminPurge', !settings.adminPurge)}
           />
 
-          <button 
-            onClick={handlePurge} 
-            className="btn-primary" 
-            style={{ 
-              width: '100%', 
-              padding: '15px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '10px',
-              background: purging ? 'var(--danger)' : 'var(--accent)',
-              boxShadow: purging ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--accent-glow)'
-            }}
-          >
-            {purging ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
-            {purging 
-              ? (isFr ? 'Arrêter la Purge' : 'Stop Purge') 
-              : (isFr ? 'Lancer la Purge' : 'Start Purge')}
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handlePurge} 
+              className="btn-primary" 
+              style={{ 
+                flex: 1, 
+                padding: '15px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '10px',
+                background: purging ? 'var(--danger)' : 'var(--accent)',
+                boxShadow: purging ? '0 0 20px var(--danger-glow)' : '0 0 20px var(--accent-glow)'
+              }}
+            >
+              {purging ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
+              {purging 
+                ? (isFr ? 'Arrêter la Purge' : 'Stop Purge') 
+                : (isFr ? 'Lancer la Purge' : 'Start Purge')}
+            </button>
+            <button 
+              onClick={handlePurgeServer} 
+              className="btn-primary" 
+              style={{ 
+                flex: 1, 
+                padding: '15px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '10px',
+                background: purging ? 'var(--danger)' : '#8b5cf6',
+                boxShadow: purging ? '0 0 20px var(--danger-glow)' : '0 0 20px rgba(139, 92, 246, 0.4)'
+              }}
+            >
+              {purging ? <RefreshCw className="animate-spin" size={16} /> : <Trash2 size={16} />}
+              {purging 
+                ? (isFr ? 'Arrêter' : 'Stop') 
+                : (isFr ? 'Purge Serveur Entier' : 'Purge Entire Server')}
+            </button>
+          </div>
         </div>
       </HubSectionCard>
 

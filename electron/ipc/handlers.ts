@@ -8,6 +8,7 @@ import { IPCResponse } from '../../shared/ipc-types';
 import { wallpaperService } from '../services/wallpaper-service';
 import { statsService } from '../services/stats-service';
 import { allowPreviewPath } from '../main';
+import { KeyAuthClient } from '../utils/keyauth';
 
 const getConfigPath = () => path.join(app.getPath('userData'), 'opsec_config.json');
 
@@ -55,8 +56,42 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
     if (mainWindow) mainWindow.close();
   });
 
-  ipcMain.handle('check-auth', async () => {
+  ipcMain.handle('check-auth', async (_, data?: { licenseKey?: string }) => {
     try {
+      const licenseKey = data?.licenseKey?.trim();
+
+      // --- PATH 1: License key provided (user is activating) ---
+      if (licenseKey) {
+        const keyauth = new KeyAuthClient();
+        await keyauth.initialize();
+        const result = await keyauth.license(licenseKey);
+        if (!result.success) {
+          return { success: false, error: result.message };
+        }
+        // Save the validated key to config so future startups can re-validate
+        const current = getSettings();
+        saveSettings({ ...current, licenseKey, licenseValidated: true });
+        return { success: true, data: { authenticated: false } }; // Let login flow continue
+      }
+
+      // --- PATH 2: Startup re-validation (no key provided, check saved key) ---
+      const settings = getSettings();
+      if (!settings.licenseKey || !settings.licenseValidated) {
+        // No saved key → force license screen
+        return { success: true, data: { authenticated: false, requireLicense: true } };
+      }
+
+      // Re-validate saved key silently on every startup
+      const keyauth = new KeyAuthClient();
+      await keyauth.initialize();
+      const revalidation = await keyauth.license(settings.licenseKey);
+      if (!revalidation.success) {
+        // Key expired or revoked → invalidate and force license screen
+        saveSettings({ ...settings, licenseValidated: false, licenseKey: '' });
+        return { success: true, data: { authenticated: false, requireLicense: true } };
+      }
+
+      // Key still valid — check if bot session is alive
       if (botService && botService.client.readyAt) {
         return { success: true, data: { authenticated: true, user: botService.getProfile() } };
       }
@@ -173,7 +208,7 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
 
   ipcMain.on('logout', () => {
     const current = getSettings();
-    // Only reset autoLogin on EXPLICIT logout. This ensures the session IS remembered on app restart.
+    // Reset autoLogin but KEEP the licenseKey so user only needs to re-enter Discord token
     saveSettings({ ...current, autoLogin: false });
     if (botService) botService.destroy();
   });
@@ -280,16 +315,28 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
   });
 
   ipcMain.handle('start-purge', async (_, { channelId, amount, purgeAll, delay }) => {
-  if (!botService) return { success: false, error: 'Bot service non initialisé' };
-  if (!channelId) return { success: false, error: 'Channel ID manquant pour la purge' };
-  if (!amount || amount <= 0) return { success: false, error: 'Amount invalide pour la purge' };
-  try {
-    await botService.purgeMessages(channelId, amount, purgeAll, delay);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    if (!channelId) return { success: false, error: 'Channel ID manquant pour la purge' };
+    if (!amount || amount <= 0) return { success: false, error: 'Amount invalide pour la purge' };
+    try {
+      await botService.purgeMessages(channelId, amount, purgeAll, delay);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('start-purge-server', async (_, { serverId, amount, purgeAll, delay }) => {
+    if (!botService) return { success: false, error: 'Bot service non initialisé' };
+    if (!serverId) return { success: false, error: 'Server ID manquant pour la purge' };
+    if (!amount || amount <= 0) return { success: false, error: 'Amount invalide pour la purge' };
+    try {
+      await botService.purgeServer(serverId, amount, purgeAll, delay);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
 
   ipcMain.handle('stop-purge', async () => {
     if (!botService) return { success: false, error: 'Bot service non initialisé' };

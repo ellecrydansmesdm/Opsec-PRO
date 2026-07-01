@@ -477,6 +477,38 @@ export class BotService extends EventEmitter {
         this.isPurging = false;
     }
 
+    async purgeServer(serverId: string, amount: number, purgeAll: boolean = false, delay: number = 1000) {
+        try {
+            const guild = await this.client.guilds.fetch(serverId).catch(() => null);
+            if (!guild) {
+                this.log('Serveur introuvable pour la purge.', 'error');
+                return;
+            }
+
+            this.isPurging = true;
+            this.log(`Démarrage de la purge complète sur le serveur ${guild.name}...`, 'info');
+
+            const channels = guild.channels.cache.filter((c: any) => c.isText());
+            
+            // Execute purges sequentially to avoid massive rate limits, but within each channel it uses batching
+            for (const channel of channels.values()) {
+                if (!this.isPurging) break;
+                this.log(`Purge en cours dans le salon : ${channel.name}`, 'info');
+                await this.purgeMessages(channel.id, amount, purgeAll, delay);
+            }
+
+            if (this.isPurging) {
+                this.log(`Purge du serveur ${guild.name} terminée.`, 'success');
+            } else {
+                this.log(`Purge du serveur ${guild.name} interrompue.`, 'info');
+            }
+            this.isPurging = false;
+        } catch (err: any) {
+            this.isPurging = false;
+            this.log(`Échec de la purge serveur : ${err.message}`, 'error');
+        }
+    }
+
     private async fetchNitroExpiry() {
         if (!this.client.user) return;
         try {

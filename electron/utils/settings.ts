@@ -5,6 +5,8 @@ import { AppSettings } from '../../shared/types';
 
 export const defaultSettings: AppSettings = {
     autoLogin: false,
+    licenseKey: '',
+    licenseValidated: false,
     silentMode: true,
     privateMode: false,
     language: 'en',

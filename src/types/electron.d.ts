@@ -4,7 +4,7 @@ import { IPCResponse } from '../../shared/ipc-types';
 declare global {
   interface Window {
     electronAPI: {
-      checkAuth: () => Promise<IPCResponse<{ authenticated: boolean; user?: UserProfile }>>;
+      checkAuth: (data?: { licenseKey: string }) => Promise<IPCResponse<{ authenticated: boolean; user?: UserProfile; requireLicense?: boolean }>>;
       loginAttempt: (data: { token: string; rememberMe: boolean }) => Promise<IPCResponse<{ user: UserProfile }>>;
       logout: () => void;
       getUserData: () => Promise<IPCResponse<UserProfile | null>>;
@@ -14,6 +14,7 @@ declare global {
       windowControl: (action: 'minimize' | 'maximize' | 'close') => void;
       onLog: (callback: (log: LogEntry) => void) => () => void;
       startPurge: (data: { channelId: string; amount: number; purgeAll: boolean; delay: number }) => Promise<IPCResponse<void>>;
+      startPurgeServer: (data: { serverId: string; amount: number; purgeAll: boolean; delay: number }) => Promise<IPCResponse<void>>;
       stopPurge: () => Promise<IPCResponse<void>>;
       getChannels: (accountIds?: string[]) => Promise<IPCResponse<{ servers: any[], dms: any[] }>>;
       resolveIds: (ids: string[]) => Promise<IPCResponse<Record<string, { name: string; icon?: string; type: string }>>>;

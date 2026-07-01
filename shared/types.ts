@@ -93,6 +93,8 @@ export interface Account {
 
 export interface AppSettings {
   autoLogin: boolean;
+  licenseKey?: string;       // Stored license key validated against Firebase
+  licenseValidated?: boolean; // Whether license was validated successfully
   silentMode: boolean;
   privateMode: boolean; // Hide "Opsec Pro" from bio/status
   language: 'fr' | 'en';

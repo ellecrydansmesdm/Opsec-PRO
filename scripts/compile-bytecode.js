@@ -7,7 +7,6 @@ const distElectronDir = path.join(projectDir, 'dist-electron');
 
 const targets = [
   { source: 'main.js', bytecode: 'main.jsc', loader: 'main-loader.js' },
-  { source: 'preload.js', bytecode: 'preload.jsc', loader: 'preload-loader.js' },
 ];
 
 function compileToBytecode(relativePath) {
