@@ -62,31 +62,41 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
 
       // --- PATH 1: License key provided (user is activating) ---
       if (licenseKey) {
+        console.log('[AUTH] Attempting activation with key:', licenseKey);
         const keyauth = new KeyAuthClient();
         await keyauth.initialize();
         const result = await keyauth.license(licenseKey);
+        console.log('[AUTH] Activation result:', result);
         if (!result.success) {
           return { success: false, error: result.message };
         }
         // Save the validated key to config so future startups can re-validate
         const current = getSettings();
+        console.log('[AUTH] Saving validated key to disk...');
         saveSettings({ ...current, licenseKey, licenseValidated: true });
         return { success: true, data: { authenticated: false } }; // Let login flow continue
       }
 
       // --- PATH 2: Startup re-validation (no key provided, check saved key) ---
       const settings = getSettings();
+      console.log('[AUTH] Loaded settings from disk:', {
+        hasKey: !!settings.licenseKey,
+        licenseValidated: settings.licenseValidated,
+        licenseKey: settings.licenseKey
+      });
       if (!settings.licenseKey || !settings.licenseValidated) {
-        // No saved key → force license screen
+        console.log('[AUTH] No saved key or not validated. Requiring license screen.');
         return { success: true, data: { authenticated: false, requireLicense: true } };
       }
 
       // Re-validate saved key silently on every startup
+      console.log('[AUTH] Silent re-validating saved key:', settings.licenseKey);
       const keyauth = new KeyAuthClient();
       await keyauth.initialize();
       const revalidation = await keyauth.license(settings.licenseKey);
+      console.log('[AUTH] Re-validation result:', revalidation);
       if (!revalidation.success) {
-        // Key expired or revoked → invalidate and force license screen
+        console.warn('[AUTH] Silent re-validation failed. Wiping key! Reason:', revalidation.message);
         saveSettings({ ...settings, licenseValidated: false, licenseKey: '' });
         return { success: true, data: { authenticated: false, requireLicense: true } };
       }
@@ -97,6 +107,7 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
       }
       return { success: true, data: { authenticated: false } };
     } catch (error: any) {
+      console.error('[AUTH] Critical error in check-auth:', error);
       return { success: false, error: error.message };
     }
   });
