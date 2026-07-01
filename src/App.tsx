@@ -58,6 +58,7 @@ function App() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [requiresLicense, setRequiresLicense] = useState(false);
+  const [savedLicenseKey, setSavedLicenseKey] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' } | null>(null);
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false);
 
@@ -278,6 +279,7 @@ function App() {
         
         if (!authRes.success || (authRes.success && authRes.data?.requireLicense)) {
           console.log('[OPSEC] No valid license or auth error, redirecting to license screen. Error:', authRes.error);
+          setSavedLicenseKey(authRes.data?.savedKey || '');
           setRequiresLicense(true);
           setAuthenticated(false);
           setIsInitializing(false);
@@ -397,7 +399,7 @@ function App() {
       
       {requiresLicense ? (
         <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-          <LicenseScreen onSuccess={async () => { 
+          <LicenseScreen initialKey={savedLicenseKey} onSuccess={async () => { 
             const settingsRes = await window.electronAPI.getSettings();
             if (settingsRes.success && settingsRes.data) {
               setSettings(settingsRes.data);

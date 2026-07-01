@@ -131,7 +131,6 @@ export function saveSettings(settings: AppSettings) {
           licenseValidated: settingsCopy.licenseValidated,
           licenseKey: settingsCopy.licenseKey
         });
-        console.trace('[SETTINGS] Call stack:');
 
         // Encrypt all account tokens before saving
         if (settingsCopy.accounts && Array.isArray(settingsCopy.accounts)) {

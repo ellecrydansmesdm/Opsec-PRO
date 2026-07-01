@@ -4,7 +4,7 @@ import { IPCResponse } from '../../shared/ipc-types';
 declare global {
   interface Window {
     electronAPI: {
-      checkAuth: (data?: { licenseKey: string }) => Promise<IPCResponse<{ authenticated: boolean; user?: UserProfile; requireLicense?: boolean }>>;
+      checkAuth: (data?: { licenseKey: string }) => Promise<IPCResponse<{ authenticated: boolean; user?: UserProfile; requireLicense?: boolean; savedKey?: string }>>;
       loginAttempt: (data: { token: string; rememberMe: boolean }) => Promise<IPCResponse<{ user: UserProfile }>>;
       logout: () => void;
       getUserData: () => Promise<IPCResponse<UserProfile | null>>;

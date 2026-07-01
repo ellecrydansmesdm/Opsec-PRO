@@ -86,7 +86,7 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
       });
       if (!settings.licenseKey || !settings.licenseValidated) {
         console.log('[AUTH] No saved key or not validated. Requiring license screen.');
-        return { success: true, data: { authenticated: false, requireLicense: true } };
+        return { success: true, data: { authenticated: false, requireLicense: true, savedKey: settings.licenseKey || '' } };
       }
 
       // Re-validate saved key silently on every startup
@@ -96,9 +96,9 @@ export function setupIpcHandlers(win: BrowserWindow | null, botService: BotServi
       const revalidation = await keyauth.license(settings.licenseKey);
       console.log('[AUTH] Re-validation result:', revalidation);
       if (!revalidation.success) {
-        console.warn('[AUTH] Silent re-validation failed. Wiping key! Reason:', revalidation.message);
-        saveSettings({ ...settings, licenseValidated: false, licenseKey: '' });
-        return { success: true, data: { authenticated: false, requireLicense: true } };
+        console.warn('[AUTH] Silent re-validation failed. Mark as unvalidated! Reason:', revalidation.message);
+        saveSettings({ ...settings, licenseValidated: false });
+        return { success: true, data: { authenticated: false, requireLicense: true, savedKey: settings.licenseKey } };
       }
 
       // Key still valid — check if bot session is alive

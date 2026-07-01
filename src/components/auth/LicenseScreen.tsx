@@ -3,14 +3,21 @@ import { KeyRound, ShieldAlert, CheckCircle, HelpCircle, ExternalLink, RefreshCw
 import { audioService } from '@/services/AudioService';
 
 interface LicenseScreenProps {
+  initialKey?: string;
   onSuccess: () => void;
 }
 
-export const LicenseScreen = ({ onSuccess }: LicenseScreenProps) => {
-  const [key, setKey] = useState('');
+export const LicenseScreen = ({ initialKey = '', onSuccess }: LicenseScreenProps) => {
+  const [key, setKey] = useState(initialKey);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  React.useEffect(() => {
+    if (initialKey) {
+      setKey(initialKey);
+    }
+  }, [initialKey]);
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
