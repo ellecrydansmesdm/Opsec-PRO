@@ -8,9 +8,9 @@
     "dev": "vite",
     "build:client": "tsc && vite build",
     "build:electron": "npx esbuild electron/main.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/main.js && npx esbuild electron/preload.ts --bundle --platform=node --packages=external --minify --outfile=dist-electron/preload.js",
-    "build": "echo Opsec PRO Release && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron",
+    "build": "echo Opsec PRO Release && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:client && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build:electron && npm run obfuscate",
     "obfuscate": "node scripts/obfuscate-renderer.js",
-    "dist": "npm run build && npm run obfuscate && node scripts/compile-bytecode.js --clean && electron-builder",
+    "dist": "npm run build && node scripts/compile-bytecode.js --clean && electron-builder",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

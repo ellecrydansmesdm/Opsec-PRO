@@ -275,8 +275,9 @@ function App() {
       try {
         // 1. ALWAYS Check License First
         const authRes = await window.electronAPI.checkAuth();
-        if (authRes.success && authRes.data?.requireLicense) {
-          console.log('[OPSEC] No valid license, redirecting to license screen');
+        
+        if (!authRes.success || (authRes.success && authRes.data?.requireLicense)) {
+          console.log('[OPSEC] No valid license or auth error, redirecting to license screen. Error:', authRes.error);
           setRequiresLicense(true);
           setAuthenticated(false);
           setIsInitializing(false);
