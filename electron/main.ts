@@ -80,7 +80,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: !!VITE_DEV_SERVER_URL,
+      devTools: !app.isPackaged,
       autoplayPolicy: 'no-user-gesture-required'
     },
   });
@@ -89,18 +89,23 @@ function createWindow() {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-    mainWindow.webContents.on('devtools-opened', () => {
-      mainWindow?.webContents.closeDevTools();
-    });
-    mainWindow.webContents.on('before-input-event', (_event, input) => {
-      const key = input.key.toLowerCase();
-      if (input.control && input.shift && (key === 'i' || key === 'j' || key === 'c')) {
-        _event.preventDefault();
-      }
-      if (key === 'f12') {
-        _event.preventDefault();
-      }
-    });
+    if (app.isPackaged) {
+      mainWindow.webContents.on('devtools-opened', () => {
+        mainWindow?.webContents.closeDevTools();
+      });
+      mainWindow.webContents.on('before-input-event', (_event, input) => {
+        const key = input.key.toLowerCase();
+        if (input.control && input.shift && (key === 'i' || key === 'j' || key === 'c')) {
+          _event.preventDefault();
+        }
+        if (key === 'f12') {
+          _event.preventDefault();
+        }
+      });
+    } else {
+      // In local dev, open devtools automatically to help debug any blank page or black screen errors
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   mainWindow.once('ready-to-show', () => {
