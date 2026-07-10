@@ -1,63 +1,110 @@
-# 🛡️ Opsec PRO — Stable RELEASE
+<div align="center">
 
-Opsec PRO est un **selfbot professionnel** haut de gamme conçu pour l'automatisation avancée et la gestion d'identité sur Discord. Alliant une interface futuriste "Glassmorphism" à des performances brutes, c'est l'outil ultime pour les power-users.
+<img src="assets/b0f94fca-bfb9-4c12-bd77-02d5b74cb312.jpg" width="100%" alt="Opsec PRO Banner" style="border-radius: 4px"/>
 
-![Release](https://img.shields.io/badge/release-RELEASE-62ff41?style=for-the-badge)
-![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge)
+<img src="assets/icon.png" width="80" alt="Opsec PRO"/>
 
----
+# Opsec PRO
 
-## 🔥 Pourquoi Opsec PRO ?
+**Discord Automation Toolkit for Windows**
 
-### 🧹 Mass-Clear de Précision
-*   **Algorithme Optimisé** : Purge vos messages à une vitesse éclair (jusqu'à 100ms).
-*   **Ciblage Hybride** : Un sélecteur intelligent qui combine vos Serveurs, vos DMs et toute votre liste d'Amis.
-*   **Dédoublonnage** : Pas de doublons entre vos amis et vos conversations actives.
+Built with Electron, React, TypeScript
 
-### 🎭 Social & Animations
-*   **Spam Pro** : Module de nuke avec variation de texte (Anti-Ban) et support de proxies.
-*   **Rich Presence Dynamique** : Affichez vos paroles Spotify en temps réel ou faites défiler des animations de statut.
-*   **AFK Farmer** : Restez présent dans les salons vocaux 24/7.
-
-### 🎨 Personnalisation Totale
-*   **Wallpaper Engine** : Changez le fond d'écran de l'application avec un aperçu instantané.
-*   **Glassmorphism FX** : Ajustez le flou et l'opacité de l'interface pour un look unique.
+</div>
 
 ---
 
-## 🚀 Installation & Lancement
-
-### 📥 Version Stable (Utilisateurs)
-1.  Rendez-vous dans les **[Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)**.
-2.  Téléchargez `Opsec PRO Setup RELEASE.exe`.
-3.  Lancez l'installation et connectez votre Token.
-    *   *Note : Vos données sont chiffrées localement et ne transitent jamais par nos serveurs.*
-
-### 👨‍💻 Environnement Dev
-1.  `npm install` - Installation des dépendances.
-2.  `npm run dev` - Lancer l'environnement de développement.
-3.  `npm run build` - Générer le build de production.
+<img src="assets/overview.png" width="100%" alt="Main Dashboard" style="border-radius: 4px; margin: 20px 0"/>
 
 ---
 
-## ⚠️ Sécurité & Responsabilité
-*   **Usage Éthique** : Ce logiciel est fourni à des fins éducatives uniquement.
-*   **Respect de la Vie Privée** : Outil 100% Client-Side. Zéro collecte de données.
-*   **Risques** : L'usage de selfbots peut entraîner une suspension de compte par Discord. Utilisez-le avec discernement.
+## About
+
+Opsec PRO is a desktop application providing Discord automation, profile management, and network utilities. It handles farming, auto-responses, account management, captcha solving, and group operations—all locally.
 
 ---
 
-## 🛠️ Stack Technique
-*   **Core** : Electron v34+
-*   **Frontend** : React 19 + Framer Motion
-*   **Logic** : discord.js-selfbot-v13
-*   **Style** : Modern CSS (Custom Glassmorphism)
+## Features
+
+**Engine Hub**
+- Profile Rotator — Automated Discord profile updates
+- Message Farmer — XP farming across channels
+- VC Hopper — Voice channel rotation
+- Auto-Responder — Pattern-based message replies
+
+**Raid Hub**  
+- Purge Utilities — Channel/server/admin message deletion
+- Pomelo Sniper — Username availability checker
+- Spam System — Bulk messaging
+- Spotify Sync — Profile presence updates
+- Group Manager — DM group operations
+- Sentinel Protection — Anti-removal safeguard
+
+**Network Hub**
+- Captcha Solvers — Capsolver, CapMonster, 2Captcha, Anti-Captcha, NoCaptchaAI
+- Proxy Rotation — IP rotation via HTTP/SOCKS5
+- Auto-Join — Auto server joining
+- Fingerprinting — Discord detection avoidance
+
+**Additional**
+- Message Sanitizer — Batch message deletion
+- Reaction Manager — Bulk reaction operations
+- Voice Monitoring — Voice activity tracking
+- Account Manager — Multi-account support
+- App Detector — Running app detection for status
 
 ---
 
+## Gallery
 
-## 👨‍💻 Crédits & Contact
+<div align="center">
 
-Développé avec passion par **ellecrydansmesdm**.
-*   **Discord ID** : `1113108440575922236` (@ellecrydansmesdm)
-*   **Serveur** : [Discord Support](https://discord.gg/Q56drkYQb5)
+<img src="assets/engine.png" width="48%" alt="Engine Hub" style="border-radius: 4px; margin: 8px"/>
+<img src="assets/raidhub.png" width="48%" alt="Raid Hub" style="border-radius: 4px; margin: 8px"/>
+
+<img src="assets/networkhub.png" width="48%" alt="Network Hub" style="border-radius: 4px; margin: 8px"/>
+<img src="assets/settings.png" width="48%" alt="Settings" style="border-radius: 4px; margin: 8px"/>
+
+<img src="assets/logs.png" width="100%" alt="Live Logs" style="border-radius: 4px; margin: 8px 0"/>
+
+</div>
+
+---
+
+## Tech Stack
+
+- **Frontend** — React + TypeScript + Vite
+- **Desktop** — Electron (Windows 10+)
+- **Backend** — Node.js, discord.js-selfbot-v13
+- **Styling** — CSS with glassmorphism effects
+
+---
+
+## Installation
+
+1. Download from [Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)
+2. Run `Opsec PRO Setup RELEASE.exe`
+3. Launch and authenticate with Discord token
+
+**Development**
+```bash
+git clone https://github.com/ellecrydansmesdm/opsec-pro.git
+cd opsec-pro
+npm install
+npm run dev          # Dev server
+npm run build        # Build
+npm run dist         # Package
+```
+
+---
+
+## Disclaimer
+
+This application interacts with Discord using a user account token. Use of selfbot automation may violate Discord ToS. Users are responsible for compliance with platform policies and local laws.
+
+---
+
+## Links
+
+- [Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)
+- [Issues](https://github.com/ellecrydansmesdm/opsec-pro/issues)
