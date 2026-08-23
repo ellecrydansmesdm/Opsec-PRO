@@ -107,6 +107,6 @@ This application interacts with Discord using a user account token. Use of selfb
 ## Links
 
 - [Official Discord Server](https://discord.gg/W2YgEStqJ4)
-- [Lifetime Store (SellApp)](https://opsecpro.sell.app/)
+- [Lifetime Pass (5€ PayPal)](https://paypal.me/mecsuperstyle/5EUR)
 - [Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)
 - [Issues](https://github.com/ellecrydansmesdm/opsec-pro/issues)
