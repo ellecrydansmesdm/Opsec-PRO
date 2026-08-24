@@ -1,6 +1,6 @@
 {
   "name": "opsec-pro",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Opsec PRO — Dynamic Discord Automation & Protection Toolkit",
   "repository": "https://github.com/ellecrydansmesdm/opsec-pro.git",
   "main": "dist-electron/main-loader.js",

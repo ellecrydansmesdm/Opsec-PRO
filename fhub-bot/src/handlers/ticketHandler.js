@@ -6,6 +6,30 @@ module.exports = async function handleTicket(interaction) {
   const user = interaction.user;
   const guild = interaction.guild;
 
+  // Safe polymorphic response helper
+  async function sendResponse(content) {
+    const payload = typeof content === 'string' ? { content, ephemeral: true } : { ...content, ephemeral: true };
+    try {
+      if (interaction.deferred || interaction.replied) {
+        if (typeof interaction.editReply === 'function') {
+          return await interaction.editReply(payload).catch(() => null);
+        } else if (typeof interaction.followUp === 'function') {
+          return await interaction.followUp(payload).catch(() => null);
+        }
+      }
+      if (typeof interaction.reply === 'function') {
+        return await interaction.reply(payload).catch(() => null);
+      }
+    } catch (e) {
+      console.error('[Ticket] Erreur sendResponse:', e);
+    }
+  }
+
+  // Defer early if available to avoid 3s Discord interaction timeout
+  if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => null);
+  }
+
   // 1. FERMETURE D'UN TICKET
   if (customId === 'ticket_close') {
     const embedClose = new EmbedBuilder()
@@ -14,7 +38,7 @@ module.exports = async function handleTicket(interaction) {
       .setColor(0x2b2d31)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embedClose] }).catch(() => null);
+    await sendResponse({ embeds: [embedClose] });
 
     // Envoi des logs
     const logsChannelId = process.env.LOGS_CHANNEL_ID;
@@ -85,10 +109,7 @@ module.exports = async function handleTicket(interaction) {
   );
 
   if (existingChannel) {
-    return interaction.reply({
-      content: `Vous avez déjà un ticket ouvert dans le salon <#${existingChannel.id}>.`,
-      ephemeral: true
-    });
+    return sendResponse(`Vous avez déjà un ticket ouvert dans le salon <#${existingChannel.id}>.`);
   }
 
   // Récupération de la catégorie et des rôles
@@ -135,7 +156,7 @@ module.exports = async function handleTicket(interaction) {
 
   try {
     const channelName = `${ticketPrefix}-${cleanUsername}`;
-    const targetParent = (categoryId && guild.channels.cache.has(categoryId)) ? categoryId : null;
+    const targetParent = (categoryId && (guild.channels.cache.has(categoryId) || await guild.channels.fetch(categoryId).catch(() => null))) ? categoryId : null;
 
     const ticketChannel = await guild.channels.create({
       name: channelName,
@@ -188,15 +209,9 @@ module.exports = async function handleTicket(interaction) {
       }
     }
 
-    return interaction.reply({
-      content: `Votre ticket a été ouvert dans <#${ticketChannel.id}>.`,
-      ephemeral: true
-    });
+    return sendResponse(`Votre ticket a été ouvert dans <#${ticketChannel.id}>.`);
   } catch (err) {
     console.error('[Ticket] Erreur création salon:', err);
-    return interaction.reply({
-      content: 'Une erreur est survenue lors de la création du ticket. Veuillez réessayer ou contacter un administrateur.',
-      ephemeral: true
-    });
+    return sendResponse('Une erreur est survenue lors de la création du ticket. Veuillez réessayer ou contacter un administrateur.');
   }
 };

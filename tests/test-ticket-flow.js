@@ -19,7 +19,18 @@ client.once('ready', async () => {
       customId: 'ticket_buy_opsec',
       user: { id: client.user.id, username: 'testuser', tag: client.user.tag },
       guild,
+      deferred: false,
+      replied: false,
+      deferReply: async () => {
+        fakeInteraction.deferred = true;
+        console.log('Interaction deferred successfully');
+      },
+      editReply: async (msg) => {
+        fakeInteraction.replied = true;
+        console.log('Interaction editReply called:', msg);
+      },
       reply: async (msg) => {
+        fakeInteraction.replied = true;
         console.log('Interaction reply called:', msg);
       }
     };

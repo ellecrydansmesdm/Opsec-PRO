@@ -38,7 +38,7 @@ export class UpdateChecker {
      * Checks for updates and verifies release metadata integrity
      */
     public static async checkForUpdates(currentAppVersion?: string): Promise<UpdateInfo> {
-        const currentVersion = currentAppVersion || app.getVersion() || '2.0.3';
+        const currentVersion = currentAppVersion || app.getVersion() || '2.0.4';
         const cleanCurrent = currentVersion.replace(/^v/i, '').trim();
 
         const endpoint = process.env.OPSEC_UPDATE_API_URL || `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
