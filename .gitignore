@@ -1,22 +1,33 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+# Commercial Distribution - Closed Source Policy
+# Keep only README.md, package.json and assets in public repository
+
+# Source code & private core
+src/
+electron/
+scripts/
+fhub-bot/
+tests/
+shared/
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+vite.config.d.ts
 
 # Build and Packaging outputs
 dist/
 dist-electron/
 release/
 build/
+node_modules/
+.pnp
+.pnp.js
 *.asar
-*.exe
-*.zip
 *.dmg
+*.zip
 
-# Environment and Local Settings
+# Environment & Private configurations
 .env
-.env.local
-.env.*.local
+.env.*
 *.local
 config.json
 config.json.tmp
@@ -27,13 +38,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# IDE and OS files
+# IDE & OS
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 .DS_Store
 Thumbs.db
