@@ -1,0 +1,53 @@
+[
+  {
+    "id": "test_long_macro",
+    "name": "Macro longue pour test annulation",
+    "description": "Pause 800ms",
+    "steps": [
+      {
+        "id": "1",
+        "type": "delay",
+        "params": {
+          "ms": 400
+        },
+        "label": "Pause 1"
+      },
+      {
+        "id": "2",
+        "type": "delay",
+        "params": {
+          "ms": 400
+        },
+        "label": "Pause 2"
+      }
+    ],
+    "isPreset": false,
+    "createdAt": 1787535289129
+  },
+  {
+    "id": "test_macro_flow",
+    "name": "Macro avec étapes de test",
+    "description": "Test de gestion des étapes de scénario",
+    "steps": [
+      {
+        "id": "1",
+        "type": "status",
+        "params": {
+          "status": "online",
+          "customText": "En ligne test"
+        },
+        "label": "Statut en ligne"
+      },
+      {
+        "id": "2",
+        "type": "delay",
+        "params": {
+          "ms": 10
+        },
+        "label": "Pause courte"
+      }
+    ],
+    "isPreset": false,
+    "createdAt": 1787535289107
+  }
+]
