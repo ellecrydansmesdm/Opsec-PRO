@@ -83,7 +83,7 @@ Opsec PRO is a desktop application providing Discord automation, profile managem
 ## Installation
 
 1. Download from [Releases](https://github.com/ellecrydansmesdm/opsec-pro/releases)
-2. Run `Opsec PRO Setup RELEASE.exe`
+2. Run `Opsec-PRO-Installer.exe`
 3. Launch and authenticate with Discord token
 
 **Development**

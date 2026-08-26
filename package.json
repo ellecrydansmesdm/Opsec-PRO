@@ -24,7 +24,7 @@
     "directories": {
       "output": "release"
     },
-    "artifactName": "Opsec PRO Setup RELEASE.exe",
+    "artifactName": "Opsec-PRO-Installer.exe",
     "publish": [
       {
         "provider": "github",
