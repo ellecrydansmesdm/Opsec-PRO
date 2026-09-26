@@ -1,19 +1,25 @@
 # Commercial Distribution - Closed Source Policy
-# Keep only README.md, package.json and assets in public repository
+# Keep only README.md, package.json and tracked public assets in public repository
 
 # Source code & private core
 src/
 electron/
 scripts/
-fhub-bot/
 tests/
 shared/
 tsconfig.json
 tsconfig.node.json
 vite.config.ts
 vite.config.d.ts
+index.html
 
-# Build and Packaging outputs
+# FHUB artifacts & bot
+fhub-bot/
+fhub-core-bot.zip
+fhub-zip-b64.txt
+*fhub*
+
+# Build, Packaging & Installer outputs
 dist/
 dist-electron/
 release/
@@ -24,8 +30,13 @@ node_modules/
 *.asar
 *.dmg
 *.zip
+*.exe
+*.msi
+*.deb
+*.rpm
+*.AppImage
 
-# Environment & Private configurations
+# Environment, Secrets & Private configurations
 .env
 .env.*
 *.local
@@ -37,9 +48,35 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+firebase-licenses-import.json
+*license*.json
+*licenses*.json
 
-# IDE & OS
+# Internal Data, Documentation & Screenshots
+.data/
+branding/
+screenshots/
+*_screenshot.png
+*_proof.png
+PROJECT_CONTEXT.md
+PRODUCT.md
+DESIGN.md
+.gitattributes
+*.png
+!assets/icon.png
+package-lock.json
+pnpm-lock.yaml
+
+# IDE, Agents & OS
 .vscode/
 .idea/
+.agents/
+.claude/
+.codex/
+agent/
+AGENTS.md
+skills-lock.json
 .DS_Store
 Thumbs.db
+
+public/
